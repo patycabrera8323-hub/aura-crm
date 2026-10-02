@@ -61,7 +61,7 @@ const CrmMainApp: React.FC = () => {
         />
 
         {/* View Switcher */}
-        <main className="flex-1 overflow-hidden relative">
+        <main className="flex-1 overflow-y-auto min-h-0 relative">
           {activeTab === 'kanban' && (
             <PipelineKanban
               onSelectLead={(lead) => setSelectedLead(lead)}

@@ -50,7 +50,7 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden p-4 lg:p-6 bg-[#FAF8FE]">
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 lg:p-6 bg-[#FAF8FE]">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">

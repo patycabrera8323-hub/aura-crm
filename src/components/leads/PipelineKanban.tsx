@@ -140,7 +140,7 @@ export const PipelineKanban: React.FC<PipelineKanbanProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden p-4 lg:p-6 bg-[#FAF8FE]">
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 lg:p-6 bg-[#FAF8FE]">
       
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
@@ -191,7 +191,7 @@ export const PipelineKanban: React.FC<PipelineKanbanProps> = ({
       </div>
 
       {/* 4 Pastel Columns Grid */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 overflow-y-auto xl:overflow-x-auto pb-4">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 overflow-auto pb-4 min-h-[460px]">
         {COLUMNS.map((column) => {
           const columnLeads = filteredLeads.filter(l => l.stage === column.id);
           const columnTotalValue = columnLeads.reduce((acc, curr) => acc + (curr.value || 0), 0);
