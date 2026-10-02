@@ -30,7 +30,7 @@ export const AnalyticsDashboard: React.FC = () => {
   const botAutomationRate = totalLeads > 0 ? Math.round((botAutomatedLeads / totalLeads) * 100) : 0;
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto p-4 lg:p-6 bg-[#FAF8FE] space-y-6">
+    <div className="w-full flex flex-col p-4 lg:p-6 bg-[#FAF8FE] space-y-6">
       
       {/* Header */}
       <div>

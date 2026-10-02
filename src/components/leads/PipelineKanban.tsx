@@ -140,7 +140,7 @@ export const PipelineKanban: React.FC<PipelineKanbanProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 lg:p-6 bg-[#FAF8FE]">
+    <div className="w-full flex flex-col p-4 lg:p-6 bg-[#FAF8FE]">
       
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
@@ -191,7 +191,7 @@ export const PipelineKanban: React.FC<PipelineKanbanProps> = ({
       </div>
 
       {/* 4 Pastel Columns Grid */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 overflow-auto pb-4 min-h-[460px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start pb-12">
         {COLUMNS.map((column) => {
           const columnLeads = filteredLeads.filter(l => l.stage === column.id);
           const columnTotalValue = columnLeads.reduce((acc, curr) => acc + (curr.value || 0), 0);
@@ -203,7 +203,7 @@ export const PipelineKanban: React.FC<PipelineKanbanProps> = ({
               onDragOver={(e) => handleDragOver(e, column.id)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, column.id)}
-              className={`flex flex-col rounded-3xl border transition-all duration-200 min-h-[500px] xl:min-h-full ${
+              className={`flex flex-col rounded-3xl border transition-all duration-200 ${
                 column.bgPastel
               } ${
                 isDragTarget 
@@ -232,7 +232,7 @@ export const PipelineKanban: React.FC<PipelineKanbanProps> = ({
               </div>
 
               {/* Cards Container */}
-              <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+              <div className="p-3 space-y-3">
                 {columnLeads.length === 0 ? (
                   <div className="h-40 border-2 border-dashed border-slate-200/80 rounded-2xl flex flex-col items-center justify-center text-center p-4 text-slate-400">
                     <p className="text-xs">{column.emptyStateText}</p>

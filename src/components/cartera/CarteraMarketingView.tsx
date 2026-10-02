@@ -67,7 +67,7 @@ export const CarteraMarketingView: React.FC<CarteraMarketingViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden p-4 lg:p-6 bg-[#FAF8FE]">
+    <div className="w-full flex flex-col p-4 lg:p-6 bg-[#FAF8FE] space-y-6">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">

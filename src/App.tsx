@@ -40,7 +40,7 @@ const CrmMainApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#FAF8FE] text-slate-800">
+    <div className="flex min-h-screen w-full bg-[#FAF8FE] text-slate-800">
       
       {/* Pastel Sidebar */}
       <Sidebar
@@ -51,7 +51,7 @@ const CrmMainApp: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         
         {/* Pastel Navbar */}
         <Navbar
@@ -61,7 +61,7 @@ const CrmMainApp: React.FC = () => {
         />
 
         {/* View Switcher */}
-        <main className="flex-1 overflow-y-auto min-h-0 relative">
+        <main className="flex-1 relative">
           {activeTab === 'kanban' && (
             <PipelineKanban
               onSelectLead={(lead) => setSelectedLead(lead)}
@@ -71,10 +71,12 @@ const CrmMainApp: React.FC = () => {
           )}
 
           {activeTab === 'chat' && (
-            <WhatsAppChatHub
-              onOpenLeadModal={(lead) => setSelectedLead(lead)}
-              onOpenAgentSettings={() => setIsAgentSettingsOpen(true)}
-            />
+            <div className="h-[calc(100vh-4.5rem)] sticky top-16">
+              <WhatsAppChatHub
+                onOpenLeadModal={(lead) => setSelectedLead(lead)}
+                onOpenAgentSettings={() => setIsAgentSettingsOpen(true)}
+              />
+            </div>
           )}
 
           {activeTab === 'leads' && (
