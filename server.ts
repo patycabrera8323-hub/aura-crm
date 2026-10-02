@@ -226,26 +226,97 @@ Devuelve un JSON con:
   }
 });
 
-// 4. Webhook Receiver for Meta/WhatsApp Cloud API & Simulation
-app.post('/api/webhook/whatsapp', (req, res) => {
-  // Support both Meta WhatsApp Cloud API format and direct simulation format
-  const metaEntry = req.body?.entry?.[0]?.changes?.[0]?.value;
-  const metaMessage = metaEntry?.messages?.[0];
-  const metaContact = metaEntry?.contacts?.[0];
+// Helper to send messages back to user through Meta WhatsApp Cloud API
+async function sendWhatsAppMessage(to: string, messageText: string) {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-  const from = metaMessage?.from || req.body?.from || 'Unknown';
-  const text = metaMessage?.text?.body || req.body?.text || '';
-  const timestamp = metaMessage?.timestamp || req.body?.timestamp || new Date().toISOString();
-  const senderName = metaContact?.profile?.name || req.body?.senderName || 'Contacto WhatsApp';
+  if (!token || !phoneId) {
+    console.warn('[WhatsApp Send] Variables WHATSAPP_ACCESS_TOKEN o WHATSAPP_PHONE_NUMBER_ID no configuradas en el entorno.');
+    return null;
+  }
 
-  console.log(`[WhatsApp Webhook] Mensaje recibido de ${from} (${senderName}): "${text}" [${timestamp}]`);
-  
-  // Meta expects HTTP 200 OK immediately
-  return res.status(200).json({
+  try {
+    const url = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'text',
+        text: { body: messageText },
+      }),
+    });
+    const result = await res.json();
+    console.log(`[WhatsApp Sent] Mensaje enviado a ${to}:`, result);
+    return result;
+  } catch (err: any) {
+    console.error('[WhatsApp Send Error]:', err.message || err);
+    return null;
+  }
+}
+
+// 4. Webhook Receiver for Meta/WhatsApp Cloud API & Auto-responder
+app.post('/api/webhook/whatsapp', async (req, res) => {
+  // Always return 200 OK immediately so Meta doesn't retry
+  res.status(200).json({
     status: 'success',
     received: true,
-    messageId: metaMessage?.id || `wamid.${Date.now()}`,
   });
+
+  try {
+    const metaEntry = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const metaMessage = metaEntry?.messages?.[0];
+    const metaContact = metaEntry?.contacts?.[0];
+
+    // If it's a status notification (delivered, read, sent), do not reply to avoid loops
+    if (!metaMessage && req.body?.entry?.[0]?.changes?.[0]?.value?.statuses) {
+      return;
+    }
+
+    const from = metaMessage?.from || req.body?.from;
+    const text = metaMessage?.text?.body || req.body?.text;
+    const senderName = metaContact?.profile?.name || req.body?.senderName || 'Paciente';
+
+    if (!from || !text) {
+      return;
+    }
+
+    console.log(`[WhatsApp Webhook] Mensaje recibido de ${from} (${senderName}): "${text}"`);
+
+    // Generate intelligent AI response
+    let replyText = '';
+    if (ai) {
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: `Mensaje de WhatsApp de ${senderName}:\n"${text}"\n\nResponde como asistente de Clínica Aura:`,
+          config: {
+            systemInstruction: 'Eres AuraBot, asistente virtual de Clínica Aura Especialistas. Brindas atención empática, respondes dudas de consultas/precios y orientas para agendar citas. Mensajes breves (máx 2 párrafos) con emojis sutiles aptos para WhatsApp.',
+            temperature: 0.7,
+          }
+        });
+        replyText = response.text || generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
+      } catch (e: any) {
+        console.error('Error generando respuesta con Gemini:', e.message);
+        replyText = generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
+      }
+    } else {
+      replyText = generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
+    }
+
+    // Send the reply back to the patient's phone
+    if (from && replyText) {
+      await sendWhatsAppMessage(from, replyText);
+    }
+  } catch (error: any) {
+    console.error('[WhatsApp Webhook Handler Error]:', error.message || error);
+  }
 });
 
 app.get('/api/webhook/whatsapp', (req, res) => {
