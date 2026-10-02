@@ -95,7 +95,7 @@ Reglas clave para WhatsApp:
     const prompt = `Historial de la conversación en WhatsApp:\n${conversationHistoryStr}\n\nResponde como ${botName} al último mensaje del lead:`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -141,7 +141,7 @@ Servicio de interés: ${service || 'Consulta General'}.
 Genera exactamente 3 respuestas cortas, profesionales y altamente efectivas en formato JSON array de strings para que el asesor humano elija con 1 clic y envíe por WhatsApp.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -201,7 +201,7 @@ Devuelve un JSON con:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -329,7 +329,7 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.0-flash',
           contents: `Mensaje de WhatsApp de ${senderName}:\n"${text}"\n\nResponde como asistente de Clínica Aura:`,
           config: {
             systemInstruction: 'Eres AuraBot, asistente virtual de Clínica Aura Especialistas. Brindas atención empática, respondes dudas de consultas/precios y orientas para agendar citas. Mensajes breves (máx 2 párrafos) con emojis sutiles aptos para WhatsApp.',
