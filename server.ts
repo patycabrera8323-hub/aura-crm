@@ -226,62 +226,97 @@ Devuelve un JSON con:
   }
 });
 
-// Helper to send messages back to user through Meta WhatsApp Cloud API
+// Helper to send messages back to user through Whapi.cloud OR Meta Cloud API
 async function sendWhatsAppMessage(to: string, messageText: string) {
+  // 1. If Whapi Token is present, prioritize Whapi.cloud (QR Web bridge)
+  const whapiToken = process.env.WHAPI_TOKEN;
+  if (whapiToken) {
+    try {
+      const url = 'https://gate.whapi.cloud/messages/text';
+      const cleanTo = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${whapiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: cleanTo,
+          body: messageText,
+        }),
+      });
+      const result = await res.json();
+      console.log(`[Whapi Sent] Mensaje enviado a ${cleanTo}:`, result);
+      return result;
+    } catch (err: any) {
+      console.error('[Whapi Send Error]:', err.message || err);
+    }
+  }
+
+  // 2. Otherwise fallback to Meta WhatsApp Cloud API
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-  if (!token || !phoneId) {
-    console.warn('[WhatsApp Send] Variables WHATSAPP_ACCESS_TOKEN o WHATSAPP_PHONE_NUMBER_ID no configuradas en el entorno.');
-    return null;
+  if (token && phoneId) {
+    try {
+      const cleanTo = to.replace(/[^0-9]/g, '');
+      const url = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanTo,
+          type: 'text',
+          text: { body: messageText },
+        }),
+      });
+      const result = await res.json();
+      console.log(`[Meta WhatsApp Sent] Mensaje enviado a ${cleanTo}:`, result);
+      return result;
+    } catch (err: any) {
+      console.error('[WhatsApp Send Error]:', err.message || err);
+      return null;
+    }
   }
 
-  try {
-    const url = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to,
-        type: 'text',
-        text: { body: messageText },
-      }),
-    });
-    const result = await res.json();
-    console.log(`[WhatsApp Sent] Mensaje enviado a ${to}:`, result);
-    return result;
-  } catch (err: any) {
-    console.error('[WhatsApp Send Error]:', err.message || err);
-    return null;
-  }
+  console.warn('[WhatsApp Send] Ni WHAPI_TOKEN ni credenciales de Meta están configuradas en las variables de entorno.');
+  return null;
 }
 
-// 4. Webhook Receiver for Meta/WhatsApp Cloud API & Auto-responder
+// 4. Webhook Receiver for Meta & Whapi.cloud WhatsApp & Auto-responder
 app.post('/api/webhook/whatsapp', async (req, res) => {
-  // Always return 200 OK immediately so Meta doesn't retry
+  // Always return 200 OK immediately so providers don't retry
   res.status(200).json({
     status: 'success',
     received: true,
   });
 
   try {
+    // Whapi format check
+    const whapiMessage = req.body?.messages?.[0];
+    if (whapiMessage?.from_me) {
+      // Do not reply to messages sent by the bot itself
+      return;
+    }
+
+    // Meta format check
     const metaEntry = req.body?.entry?.[0]?.changes?.[0]?.value;
     const metaMessage = metaEntry?.messages?.[0];
     const metaContact = metaEntry?.contacts?.[0];
 
-    // If it's a status notification (delivered, read, sent), do not reply to avoid loops
-    if (!metaMessage && req.body?.entry?.[0]?.changes?.[0]?.value?.statuses) {
+    // If it's a status notification (delivered, read, sent), do not reply
+    if (!metaMessage && !whapiMessage && (req.body?.entry?.[0]?.changes?.[0]?.value?.statuses || req.body?.statuses)) {
       return;
     }
 
-    const from = metaMessage?.from || req.body?.from;
-    const text = metaMessage?.text?.body || req.body?.text;
-    const senderName = metaContact?.profile?.name || req.body?.senderName || 'Paciente';
+    const from = whapiMessage?.chat_id || whapiMessage?.from || metaMessage?.from || req.body?.from;
+    const text = whapiMessage?.text?.body || whapiMessage?.body || metaMessage?.text?.body || req.body?.text;
+    const senderName = whapiMessage?.from_name || metaContact?.profile?.name || req.body?.senderName || 'Paciente';
 
     if (!from || !text) {
       return;
