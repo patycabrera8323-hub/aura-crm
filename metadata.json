@@ -1,0 +1,6 @@
+{
+  "name": "Aura CRM - Leads & WhatsApp AI Agent",
+  "description": "CRM inteligente en tonos morado pastel para gestión de leads en 3 estados (Inicio, Atendiendo, Fue a Consulta / En Cartera) con Agente de WhatsApp IA conectado.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
