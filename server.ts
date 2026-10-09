@@ -3,6 +3,15 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { 
+  getOrCreateUser, 
+  getOrCreateConversation, 
+  saveMessage, 
+  updateConversationStatus, 
+  matchRule, 
+  recordAiUsage, 
+  getRecentMessages 
+} from './src/services/supabase.js';
 
 dotenv.config();
 
@@ -324,28 +333,101 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
 
     console.log(`[WhatsApp Webhook] Mensaje recibido de ${from} (${senderName}): "${text}"`);
 
-    // Generate intelligent AI response
+    // 1. Base de Datos: Identificar usuario y conversación
+    const user = await getOrCreateUser(from, senderName);
+    const conversation = user ? await getOrCreateConversation(user.id) : null;
+
+    if (conversation) {
+      await saveMessage(conversation.id, 'user', text);
+
+      // Si está transferido a un humano, el bot no responde
+      if (conversation.status === 'human_handoff') {
+        console.log(`[Bot Silenciado] La conversación ${conversation.id} está en manos de un asesor humano.`);
+        return;
+      }
+    }
+
+    // 2. Motor de Reglas (0 Tokens de IA)
+    const matchedRule = await matchRule(text);
+    if (matchedRule) {
+      console.log(`[Regla Coincidente] Ejecutando regla para "${matchedRule.keyword}" (Acción: ${matchedRule.action})`);
+
+      if (matchedRule.action === 'handoff' && conversation) {
+        await updateConversationStatus(conversation.id, 'human_handoff');
+      }
+
+      const ruleResponse = matchedRule.response_text;
+      if (conversation) {
+        await saveMessage(conversation.id, 'bot', ruleResponse);
+      }
+      await sendWhatsAppMessage(from, ruleResponse);
+      return; // Fin del flujo sin gastar tokens
+    }
+
+    // 3. IA Fallback / Generativa (Cuando no hay regla fija)
+    // Recuperar memoria corta (últimos 6 mensajes de la conversación)
+    let recentHistoryStr = '';
+    if (conversation) {
+      const recentMessages = await getRecentMessages(conversation.id, 6);
+      recentHistoryStr = recentMessages
+        .map((m: any) => `${m.sender === 'user' ? senderName : 'AuraBot'}: ${m.text}`)
+        .join('\n');
+    }
+
     let replyText = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+
     if (ai) {
       try {
+        const prompt = recentHistoryStr 
+          ? `Historial reciente:\n${recentHistoryStr}\n\nÚltimo mensaje de ${senderName}:\n"${text}"\n\nResponde como asistente de Clínica Aura:`
+          : `Mensaje de WhatsApp de ${senderName}:\n"${text}"\n\nResponde como asistente de Clínica Aura:`;
+
         const response = await ai.models.generateContent({
           model: 'gemini-2.0-flash',
-          contents: `Mensaje de WhatsApp de ${senderName}:\n"${text}"\n\nResponde como asistente de Clínica Aura:`,
+          contents: prompt,
           config: {
-            systemInstruction: 'Eres AuraBot, asistente virtual de Clínica Aura Especialistas. Brindas atención empática, respondes dudas de consultas/precios y orientas para agendar citas. Mensajes breves (máx 2 párrafos) con emojis sutiles aptos para WhatsApp.',
+            systemInstruction: 'Eres AuraBot, asistente virtual de Clínica Aura Especialistas. Brindas atención empática, respondes dudas de consultas/precios y orientas para agendar citas. Mensajes breves (máx 2 párrafos) con emojis sutiles aptos para WhatsApp. No inventes precios ni procedimientos no mencionados.',
             temperature: 0.7,
           }
         });
+
         replyText = response.text || generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
+
+        // Capturar uso de tokens reportado por la API
+        if ((response as any).usageMetadata) {
+          inputTokens = (response as any).usageMetadata.promptTokenCount || 0;
+          outputTokens = (response as any).usageMetadata.candidatesTokenCount || 0;
+        }
       } catch (e: any) {
-        console.error('Error generando respuesta con Gemini:', e.message);
+        console.error('Error generando respuesta con IA:', e.message);
         replyText = generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
       }
     } else {
       replyText = generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
     }
 
-    // Send the reply back to the patient's phone
+    // 4. Guardar respuesta y registrar consumo de tokens
+    if (conversation) {
+      await saveMessage(conversation.id, 'bot', replyText);
+
+      if (inputTokens > 0 || outputTokens > 0) {
+        // Costo estimado aproximado para Gemini Flash (~$0.075 / 1M input, ~$0.30 / 1M output)
+        const estimatedCost = (inputTokens * 0.000000075) + (outputTokens * 0.0000003);
+        await recordAiUsage({
+          conversationId: conversation.id,
+          userId: user?.id,
+          provider: 'google',
+          model: 'gemini-2.0-flash',
+          inputTokens,
+          outputTokens,
+          estimatedCost
+        });
+      }
+    }
+
+    // 5. Enviar mensaje por WhatsApp
     if (from && replyText) {
       await sendWhatsAppMessage(from, replyText);
     }
