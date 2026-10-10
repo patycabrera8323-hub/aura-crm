@@ -371,14 +371,27 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
       return;
     }
 
+    // Extraer texto o ID de botón presionado (soporta Whapi interactive, buttons y texto estándar)
+    const buttonId = whapiMessage?.interactive?.button_reply?.id || 
+                     whapiMessage?.button_reply?.id || 
+                     whapiMessage?.action?.reply?.id;
+    const buttonTitle = whapiMessage?.interactive?.button_reply?.title || 
+                        whapiMessage?.button_reply?.title;
+
+    const rawText = buttonId || buttonTitle || 
+                    whapiMessage?.text?.body || 
+                    whapiMessage?.body || 
+                    metaMessage?.text?.body || 
+                    req.body?.text;
+
     const from = whapiMessage?.chat_id || whapiMessage?.from || metaMessage?.from || req.body?.from;
-    const text = whapiMessage?.text?.body || whapiMessage?.body || metaMessage?.text?.body || req.body?.text;
     const senderName = whapiMessage?.from_name || metaContact?.profile?.name || req.body?.senderName || 'Paciente';
 
-    if (!from || !text) {
+    if (!from || !rawText) {
       return;
     }
 
+    const text = rawText.toString().trim();
     console.log(`[WhatsApp Webhook] Mensaje recibido de ${from} (${senderName}): "${text}"`);
 
     // 1. Base de Datos: Identificar usuario y conversación
@@ -398,9 +411,80 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     // 2. Motor de Reglas y Botones Interactivos (0 Tokens de IA)
     const lowerText = text.toLowerCase().trim();
 
-    // Si es saludo o menú inicial: enviar Botones de Respuesta Rápida
-    if (lowerText.includes('hola') || lowerText.includes('buenos dias') || lowerText.includes('buenas tardes') || lowerText === 'menu') {
-      const welcomeText = `¡Hola ${senderName}! 👋 Bienvenido a Clínica Aura Especialistas.\n\n¿Cómo podemos ayudarte hoy? Elige una opción:`;
+    // Respuestas a opciones numéricas o botones:
+    // Opción 1: Precios
+    const isPriceQuery = lowerText === '1' || 
+                         lowerText === 'btn_precios' || 
+                         lowerText.includes('ver precio') || 
+                         lowerText.includes('precio') || 
+                         lowerText.includes('costo') || 
+                         lowerText.includes('cuanto vale') ||
+                         lowerText.includes('tarifa');
+
+    // Opción 2: Citas
+    const isAppointmentQuery = lowerText === '2' || 
+                              lowerText === 'btn_citas' || 
+                              lowerText.includes('agendar') || 
+                              lowerText.includes('cita') || 
+                              lowerText.includes('horario') || 
+                              lowerText.includes('turno');
+
+    // Opción 3: Asesor
+    const isHandoffQuery = lowerText === '3' || 
+                          lowerText === 'btn_asesor' || 
+                          lowerText.includes('asesor') || 
+                          lowerText.includes('humano') || 
+                          lowerText.includes('persona');
+
+    // Opción 4: Ubicación
+    const isLocationQuery = lowerText === '4' || 
+                           lowerText === 'btn_ubicacion' || 
+                           lowerText.includes('ubicacion') || 
+                           lowerText.includes('donde estan') || 
+                           lowerText.includes('direccion');
+
+    // Flujo de Precios (Opción 1)
+    if (isPriceQuery) {
+      const priceText = `🩺 *Precios de Consulta y Valoración:*\n\n• Consulta General y Diagnóstico: *$45 USD / $850 MXN*\n• Incluye revisión médica completa y plan personalizado de tratamiento.\n\n¿Deseas apartar tu espacio para esta semana?\n\nResponde con:\n*2.* 📅 Agendar Cita\n*4.* 📍 Ubicación de la clínica`;
+      const buttons = [
+        { id: 'btn_citas', title: '📅 Agendar Cita' },
+        { id: 'btn_ubicacion', title: '📍 Ubicación' }
+      ];
+      if (conversation) await saveMessage(conversation.id, 'bot', priceText);
+      await sendWhapiButtons(from, priceText, buttons);
+      return;
+    }
+
+    // Flujo de Citas (Opción 2)
+    if (isAppointmentQuery) {
+      const appointmentText = `📅 *Disponibilidad de Citas:*\n\nContamos con espacios disponibles esta semana:\n• *Jueves:* 10:30 AM o 4:00 PM\n• *Viernes:* 11:00 AM o 5:30 PM\n\n¿Cuál horario te queda mejor? Si prefieres otro día, indícanoslo y con gusto te buscamos cupo.`;
+      if (conversation) await saveMessage(conversation.id, 'bot', appointmentText);
+      await sendWhatsAppMessage(from, appointmentText);
+      return;
+    }
+
+    // Flujo de Asesor Humano (Opción 3)
+    if (isHandoffQuery) {
+      const handoffText = `👨‍⚕️ Entendido, ${senderName}. He transferido esta conversación a uno de nuestros asesores humanos. En breve te responderán directamente por aquí.`;
+      if (conversation) {
+        await updateConversationStatus(conversation.id, 'human_handoff');
+        await saveMessage(conversation.id, 'bot', handoffText);
+      }
+      await sendWhatsAppMessage(from, handoffText);
+      return;
+    }
+
+    // Flujo de Ubicación (Opción 4)
+    if (isLocationQuery) {
+      const locationText = `📍 *Ubicación de Clínica Aura:*\n\nEstamos ubicados en: *Av. Médica Central #500, Torre B, Piso 3*.\nContamos con estacionamiento para pacientes y acceso para personas con movilidad reducida.\n\n¿Te gustaría programar tu visita?`;
+      if (conversation) await saveMessage(conversation.id, 'bot', locationText);
+      await sendWhatsAppMessage(from, locationText);
+      return;
+    }
+
+    // Saludo inicial o palabra 'menu': Enviar menú principal
+    if (lowerText.includes('hola') || lowerText.includes('buenos dias') || lowerText.includes('buenas tardes') || lowerText === 'menu' || lowerText === 'inicio') {
+      const welcomeText = `¡Hola ${senderName}! 👋 Bienvenido a Clínica Aura Especialistas.\n\n¿Cómo podemos ayudarte hoy? Elige una opción o escribe su número:\n\n*1.* 💰 Ver Precios\n*2.* 📅 Agendar Cita\n*3.* 👨‍⚕️ Hablar con Asesor`;
       const buttons = [
         { id: 'btn_precios', title: '💰 Ver Precios' },
         { id: 'btn_citas', title: '📅 Agendar Cita' },
@@ -411,35 +495,6 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
         await saveMessage(conversation.id, 'bot', welcomeText);
       }
       await sendWhapiButtons(from, welcomeText, buttons);
-      return;
-    }
-
-    // Si el usuario presionó uno de los botones o escribió la palabra clave
-    if (lowerText === 'btn_precios' || lowerText.includes('precio') || lowerText.includes('costo') || lowerText.includes('cuanto vale')) {
-      const priceText = `🩺 *Precios de Consulta y Valoración:*\n\n• Consulta General y Diagnóstico: *$45 USD / $850 MXN*\n• Incluye revisión médica completa y plan de tratamiento.\n\n¿Deseas apartar tu espacio para esta semana?`;
-      const buttons = [
-        { id: 'btn_citas', title: '📅 Agendar Cita' },
-        { id: 'btn_ubicacion', title: '📍 Ubicación' }
-      ];
-      if (conversation) await saveMessage(conversation.id, 'bot', priceText);
-      await sendWhapiButtons(from, priceText, buttons);
-      return;
-    }
-
-    if (lowerText === 'btn_citas' || lowerText.includes('agendar') || lowerText.includes('cita') || lowerText.includes('horario')) {
-      const appointmentText = `📅 *Disponibilidad de Citas:*\n\nContamos con espacios disponibles:\n• Jueves: 10:30 AM o 4:00 PM\n• Viernes: 11:00 AM o 5:30 PM\n\n¿Cuál de estos horarios te queda mejor?`;
-      if (conversation) await saveMessage(conversation.id, 'bot', appointmentText);
-      await sendWhatsAppMessage(from, appointmentText);
-      return;
-    }
-
-    if (lowerText === 'btn_asesor' || lowerText.includes('asesor') || lowerText.includes('humano') || lowerText.includes('persona')) {
-      const handoffText = `👨‍⚕️ Entendido, ${senderName}. He transferido esta conversación a uno de nuestros asesores humanos. En breve te responderán por aquí.`;
-      if (conversation) {
-        await updateConversationStatus(conversation.id, 'human_handoff');
-        await saveMessage(conversation.id, 'bot', handoffText);
-      }
-      await sendWhatsAppMessage(from, handoffText);
       return;
     }
 
