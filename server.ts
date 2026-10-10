@@ -552,10 +552,10 @@ Reglas estrictas de seguridad:
       modelUsed = cascadeResult.model;
 
       // Cálculo de costo estimado según proveedor
-      if (providerUsed === 'cerebras') {
+      if (providerUsed === 'groq') {
+        estimatedCost = (inputTokens * 0.00000059) + (outputTokens * 0.00000079); // Groq LPU super económico
+      } else if (providerUsed === 'cerebras') {
         estimatedCost = (inputTokens + outputTokens) * 0.0000001; // Cerebras ultrabarato
-      } else if (providerUsed === 'grok') {
-        estimatedCost = (inputTokens * 0.000002) + (outputTokens * 0.00001);
       } else if (providerUsed === 'nvidia') {
         estimatedCost = (inputTokens + outputTokens) * 0.0000002;
       }

@@ -17,15 +17,15 @@ export interface AIMessage {
 
 // Configuración de endpoints y modelos oficiales
 const PROVIDER_CONFIGS: Record<string, { baseURL: string; defaultModel: string; apiKeyEnv: string }> = {
+  groq: {
+    baseURL: 'https://api.groq.com/openai/v1',
+    defaultModel: 'llama-3.3-70b-versatile',
+    apiKeyEnv: 'GROQ_API_KEY'
+  },
   cerebras: {
     baseURL: 'https://api.cerebras.ai/v1',
-    defaultModel: 'llama3.1-8b',
+    defaultModel: 'llama-3.3-70b',
     apiKeyEnv: 'CEREBRAS_API_KEY'
-  },
-  grok: {
-    baseURL: 'https://api.x.ai/v1',
-    defaultModel: 'grok-2-latest',
-    apiKeyEnv: 'GROK_API_KEY'
   },
   nvidia: {
     baseURL: 'https://integrate.api.nvidia.com/v1',
@@ -38,7 +38,7 @@ const PROVIDER_CONFIGS: Record<string, { baseURL: string; defaultModel: string; 
  * Llamada genérica a APIs compatibles con el estándar OpenAI (Cerebras, Grok, NVIDIA)
  */
 async function callOpenAICompatible(
-  provider: 'cerebras' | 'grok' | 'nvidia',
+  provider: 'groq' | 'cerebras' | 'nvidia',
   messages: AIMessage[],
   systemInstruction?: string
 ): Promise<AIResponse> {
@@ -106,8 +106,8 @@ export async function generateCascadeResponse(
   messages: AIMessage[],
   systemInstruction: string
 ): Promise<AIResponse> {
-  const primary = (process.env.AI_PRIMARY_PROVIDER || 'cerebras').toLowerCase() as 'cerebras' | 'grok' | 'nvidia';
-  const fallback = (process.env.AI_FALLBACK_PROVIDER || 'grok').toLowerCase() as 'cerebras' | 'grok' | 'nvidia';
+  const primary = (process.env.AI_PRIMARY_PROVIDER || 'groq').toLowerCase() as 'groq' | 'cerebras' | 'nvidia';
+  const fallback = (process.env.AI_FALLBACK_PROVIDER || 'nvidia').toLowerCase() as 'groq' | 'cerebras' | 'nvidia';
 
   // 1. Intentar proveedor principal
   try {
