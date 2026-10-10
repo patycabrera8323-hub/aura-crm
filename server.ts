@@ -339,7 +339,7 @@ async function sendWhapiButtons(to: string, headerText: string, buttons: Array<{
           buttons: buttons.map(b => ({
             id: b.id,
             title: b.title.slice(0, 20),
-            type: 'reply'
+            type: 'quick_reply'
           }))
         }
       }),
