@@ -16,20 +16,31 @@ export interface AIMessage {
 }
 
 // Configuración de endpoints y modelos oficiales
-const PROVIDER_CONFIGS: Record<string, { baseURL: string; defaultModel: string; getApiKey: () => string | undefined }> = {
+const PROVIDER_CONFIGS: Record<string, { baseURL: string; models: string[]; getApiKey: () => string | undefined }> = {
   nvidia: {
     baseURL: 'https://integrate.api.nvidia.com/v1',
-    defaultModel: 'deepseek-ai/deepseek-r1', // Modelo oficial gratuito de tu catálogo NVIDIA
+    models: [
+      'nvidia/llama-3.1-nemotron-70b-instruct',
+      'deepseek-ai/deepseek-r1',
+      'meta/llama-3.1-70b-instruct'
+    ],
     getApiKey: () => process.env.NVIDIA_API_KEY
   },
   groq: {
     baseURL: 'https://api.groq.com/openai/v1',
-    defaultModel: 'llama-3.3-70b-versatile',
-    getApiKey: () => process.env.GROQ_API_KEY || process.env.GROK_API_KEY // Acepta ambas grafías
+    models: [
+      'llama-3.1-8b-instant',
+      'llama3-8b-8192',
+      'mixtral-8x7b-32768'
+    ],
+    getApiKey: () => process.env.GROQ_API_KEY || process.env.GROK_API_KEY
   },
   cerebras: {
     baseURL: 'https://api.cerebras.ai/v1',
-    defaultModel: 'llama3.1-8b',
+    models: [
+      'llama3.1-8b',
+      'llama-3.3-70b'
+    ],
     getApiKey: () => process.env.CEREBRAS_API_KEY
   }
 };
@@ -53,48 +64,57 @@ async function callOpenAICompatible(
     ? [{ role: 'system' as const, content: systemInstruction }, ...messages]
     : messages;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 segundos timeout
+  let lastError = '';
 
-  try {
-    const res = await fetch(`${config.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: config.defaultModel,
-        messages: formattedMessages,
-        temperature: 0.7,
-        max_tokens: 350
-      }),
-      signal: controller.signal
-    });
+  // Probar cada modelo de la lista del proveedor si alguno da 404
+  for (const model of config.models) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 segundos timeout
 
-    clearTimeout(timeoutId);
+    try {
+      const res = await fetch(`${config.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model,
+          messages: formattedMessages,
+          temperature: 0.7,
+          max_tokens: 350
+        }),
+        signal: controller.signal
+      });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`[${provider}] Error HTTP ${res.status}: ${errText}`);
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        lastError = `[${provider}] Error HTTP ${res.status} con modelo ${model}: ${errText}`;
+        console.warn(lastError);
+        continue; // Probar siguiente modelo del mismo proveedor
+      }
+
+      const data = await res.json();
+      const replyText = data.choices?.[0]?.message?.content || '';
+      const inputTokens = data.usage?.prompt_tokens || 0;
+      const outputTokens = data.usage?.completion_tokens || 0;
+
+      return {
+        text: replyText.trim(),
+        inputTokens,
+        outputTokens,
+        provider,
+        model
+      };
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastError = err.message;
     }
-
-    const data = await res.json();
-    const replyText = data.choices?.[0]?.message?.content || '';
-    const inputTokens = data.usage?.prompt_tokens || 0;
-    const outputTokens = data.usage?.completion_tokens || 0;
-
-    return {
-      text: replyText.trim(),
-      inputTokens,
-      outputTokens,
-      provider,
-      model: config.defaultModel
-    };
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    throw err;
   }
+
+  throw new Error(lastError || `Ningún modelo de ${provider} respondió exitosamente.`);
 }
 
 /**
