@@ -20,7 +20,8 @@ const PROVIDER_CONFIGS: Record<string, { baseURL: string; models: string[]; getA
   nvidia: {
     baseURL: 'https://integrate.api.nvidia.com/v1',
     models: [
-      'deepseek-ai/deepseek-v4.1-flash' // Modelo oficial gratuito confirmado de tu consola NVIDIA
+      'nvidia/nemotron-3.5-lightning-30b-a3b', // Ultra rápido y gratuito de tu consola NVIDIA
+      'deepseek-ai/deepseek-v4.1-flash'
     ],
     getApiKey: () => process.env.NVIDIA_API_KEY
   },
