@@ -82,7 +82,7 @@ async function callOpenAICompatible(
           model,
           messages: formattedMessages,
           temperature: 0.7,
-          max_tokens: 350
+          max_tokens: 600
         }),
         signal: controller.signal
       });
