@@ -21,25 +21,25 @@ const PROVIDER_CONFIGS: Record<string, { baseURL: string; models: string[]; getA
     baseURL: 'https://integrate.api.nvidia.com/v1',
     models: [
       'deepseek-ai/deepseek-v3',
-      'nvidia/nemotron-4-340b-instruct',
-      'meta/llama-3.3-70b-instruct'
+      'deepseek-ai/deepseek-r1',
+      'nvidia/llama-3.1-nemotron-70b-instruct'
     ],
     getApiKey: () => process.env.NVIDIA_API_KEY
   },
   groq: {
     baseURL: 'https://api.groq.com/openai/v1',
     models: [
-      'qwen-2.5-32b',
-      'gemma2-9b-it',
-      'llama-3.3-70b-versatile'
+      'deepseek-r1-distill-llama-70b',
+      'llama-3.3-70b-versatile',
+      'qwen-2.5-32b'
     ],
     getApiKey: () => process.env.GROQ_API_KEY || process.env.GROK_API_KEY
   },
   cerebras: {
     baseURL: 'https://api.cerebras.ai/v1',
     models: [
-      'qwen-3.8-27b',
       'gpt-oss-120b',
+      'qwen-3.8-27b',
       'llama-3.3-70b'
     ],
     getApiKey: () => process.env.CEREBRAS_API_KEY

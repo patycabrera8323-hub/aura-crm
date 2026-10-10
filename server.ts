@@ -385,12 +385,19 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
       return;
     }
 
-    // Extraer texto o ID de botón presionado (soporta Whapi interactive, buttons y texto estándar)
-    const buttonId = whapiMessage?.interactive?.button_reply?.id || 
-                     whapiMessage?.button_reply?.id || 
-                     whapiMessage?.action?.reply?.id;
-    const buttonTitle = whapiMessage?.interactive?.button_reply?.title || 
-                        whapiMessage?.button_reply?.title;
+    // Extraer texto o ID de botón presionado (soporta Whapi interactive, quick_reply, buttons y texto estándar)
+    const buttonId = whapiMessage?.action?.button?.id ||
+                     whapiMessage?.action?.reply?.id ||
+                     whapiMessage?.interactive?.button_reply?.id || 
+                     whapiMessage?.button_reply?.id ||
+                     whapiMessage?.button?.id;
+
+    const buttonTitle = whapiMessage?.action?.button?.text ||
+                        whapiMessage?.action?.reply?.title ||
+                        whapiMessage?.interactive?.button_reply?.title || 
+                        whapiMessage?.button_reply?.title ||
+                        whapiMessage?.button?.text ||
+                        whapiMessage?.title;
 
     const rawText = buttonId || buttonTitle || 
                     whapiMessage?.text?.body || 
@@ -401,12 +408,14 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     const from = whapiMessage?.chat_id || whapiMessage?.from || metaMessage?.from || req.body?.from;
     const senderName = whapiMessage?.from_name || metaContact?.profile?.name || req.body?.senderName || 'Paciente';
 
+    console.log(`[WhatsApp Inbound Event] Type: ${whapiMessage?.type || 'unknown'} | ButtonId: ${buttonId || 'none'} | RawText: "${rawText || 'empty'}"`);
+
     if (!from || !rawText) {
       return;
     }
 
     const text = rawText.toString().trim();
-    console.log(`[WhatsApp Webhook] Mensaje recibido de ${from} (${senderName}): "${text}"`);
+    console.log(`[WhatsApp Webhook] Mensaje procesado de ${from} (${senderName}): "${text}"`);
 
     // 1. Base de Datos: Identificar usuario y conversación
     const user = await getOrCreateUser(from, senderName);
