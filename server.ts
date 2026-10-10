@@ -386,31 +386,41 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     }
 
     // Extraer texto o ID de botón presionado
-    // Whapi envía type:"reply" con los datos en whapiMessage.reply.id / reply.title
-    const buttonId = whapiMessage?.reply?.id ||             // ← type:"reply" de Whapi (el más común)
+    // Whapi puede estructurar el reply de diversas formas según la API version
+    const buttonId = whapiMessage?.reply?.id ||
+                     whapiMessage?.reply?.buttons_response?.selected_button_id ||
+                     whapiMessage?.interactive?.button_reply?.id ||
+                     whapiMessage?.interactive?.list_reply?.id ||
                      whapiMessage?.action?.button?.id ||
                      whapiMessage?.action?.reply?.id ||
-                     whapiMessage?.interactive?.button_reply?.id || 
                      whapiMessage?.button_reply?.id ||
-                     whapiMessage?.button?.id;
+                     whapiMessage?.button?.id ||
+                     whapiMessage?.context?.id;
 
-    const buttonTitle = whapiMessage?.reply?.title ||       // ← type:"reply" de Whapi
+    const buttonTitle = whapiMessage?.reply?.title ||
+                        whapiMessage?.reply?.buttons_response?.selected_display_text ||
                         whapiMessage?.reply?.text ||
+                        whapiMessage?.interactive?.button_reply?.title ||
+                        whapiMessage?.interactive?.list_reply?.title ||
                         whapiMessage?.action?.button?.text ||
                         whapiMessage?.action?.reply?.title ||
-                        whapiMessage?.interactive?.button_reply?.title || 
                         whapiMessage?.button_reply?.title ||
                         whapiMessage?.button?.text ||
                         whapiMessage?.title;
 
     const rawText = buttonId || buttonTitle || 
                     whapiMessage?.text?.body || 
+                    whapiMessage?.text || 
                     whapiMessage?.body || 
                     metaMessage?.text?.body || 
                     req.body?.text;
 
     const from = whapiMessage?.chat_id || whapiMessage?.from || metaMessage?.from || req.body?.from;
     const senderName = whapiMessage?.from_name || metaContact?.profile?.name || req.body?.senderName || 'Paciente';
+
+    if (whapiMessage?.type === 'reply' || whapiMessage?.type === 'interactive' || whapiMessage?.type === 'button') {
+      console.log(`[WHAPI DEBUG CLICK PAYLOAD]:`, JSON.stringify(whapiMessage, null, 2));
+    }
 
     console.log(`[WhatsApp Inbound Event] Type: ${whapiMessage?.type || 'unknown'} | ButtonId: ${buttonId || 'none'} | RawText: "${rawText || 'empty'}"`);
 

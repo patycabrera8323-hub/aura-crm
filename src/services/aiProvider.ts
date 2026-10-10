@@ -127,9 +127,8 @@ export async function generateCascadeResponse(
   messages: AIMessage[],
   systemInstruction: string
 ): Promise<AIResponse> {
-  // Jerarquía: 1° Groq -> 2° Cerebras -> 3° NVIDIA
-  // (NVIDIA al último hasta que la clave tenga permisos activos)
-  const providers: Array<'groq' | 'cerebras' | 'nvidia'> = ['groq', 'cerebras', 'nvidia'];
+  // Jerarquía definida: 1° NVIDIA -> 2° Groq -> 3° Cerebras
+  const providers: Array<'nvidia' | 'groq' | 'cerebras'> = ['nvidia', 'groq', 'cerebras'];
 
   for (const provider of providers) {
     try {
