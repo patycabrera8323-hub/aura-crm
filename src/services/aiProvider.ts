@@ -23,7 +23,7 @@ const PROVIDER_CONFIGS: Record<string, { baseURL: string; models: string[]; getA
       'nvidia/nemotron-3.5-lightning-30b-a3b', // Ultra rápido y gratuito de tu consola NVIDIA
       'deepseek-ai/deepseek-v4.1-flash'
     ],
-    getApiKey: () => process.env.NVIDIA_API_KEY
+    getApiKey: () => process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim().replace(/^["']|["']$/g, '') : undefined
   },
   groq: {
     baseURL: 'https://api.groq.com/openai/v1',
