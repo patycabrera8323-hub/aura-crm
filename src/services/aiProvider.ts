@@ -16,26 +16,26 @@ export interface AIMessage {
 }
 
 // Configuración de endpoints y modelos oficiales
-const PROVIDER_CONFIGS: Record<string, { baseURL: string; defaultModel: string; apiKeyEnv: string }> = {
+const PROVIDER_CONFIGS: Record<string, { baseURL: string; defaultModel: string; getApiKey: () => string | undefined }> = {
+  nvidia: {
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    defaultModel: 'deepseek-ai/deepseek-r1', // Modelo oficial gratuito de tu catálogo NVIDIA
+    getApiKey: () => process.env.NVIDIA_API_KEY
+  },
   groq: {
     baseURL: 'https://api.groq.com/openai/v1',
     defaultModel: 'llama-3.3-70b-versatile',
-    apiKeyEnv: 'GROQ_API_KEY'
+    getApiKey: () => process.env.GROQ_API_KEY || process.env.GROK_API_KEY // Acepta ambas grafías
   },
   cerebras: {
     baseURL: 'https://api.cerebras.ai/v1',
-    defaultModel: 'llama-3.3-70b',
-    apiKeyEnv: 'CEREBRAS_API_KEY'
-  },
-  nvidia: {
-    baseURL: 'https://integrate.api.nvidia.com/v1',
-    defaultModel: 'meta/llama-3.3-70b-instruct',
-    apiKeyEnv: 'NVIDIA_API_KEY'
+    defaultModel: 'llama3.1-8b',
+    getApiKey: () => process.env.CEREBRAS_API_KEY
   }
 };
 
 /**
- * Llamada genérica a APIs compatibles con el estándar OpenAI (Cerebras, Grok, NVIDIA)
+ * Llamada genérica a APIs compatibles con el estándar OpenAI (Cerebras, Groq, NVIDIA)
  */
 async function callOpenAICompatible(
   provider: 'groq' | 'cerebras' | 'nvidia',
@@ -43,10 +43,10 @@ async function callOpenAICompatible(
   systemInstruction?: string
 ): Promise<AIResponse> {
   const config = PROVIDER_CONFIGS[provider];
-  const apiKey = process.env[config.apiKeyEnv];
+  const apiKey = config.getApiKey();
 
   if (!apiKey) {
-    throw new Error(`[AI Provider] Falta la variable de entorno ${config.apiKeyEnv}`);
+    throw new Error(`[AI Provider] Falta la API Key para ${provider} en las variables de entorno.`);
   }
 
   const formattedMessages = systemInstruction 

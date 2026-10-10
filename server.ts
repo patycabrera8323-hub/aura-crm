@@ -309,10 +309,15 @@ async function sendWhatsAppMessage(to: string, messageText: string) {
 // Helper para enviar Botones Interactivos en WhatsApp vía Whapi (0 Tokens)
 async function sendWhapiButtons(to: string, headerText: string, buttons: Array<{ id: string; title: string }>) {
   const whapiToken = process.env.WHAPI_TOKEN;
+  
+  // Si el texto ya tiene los números 1., 2., etc., usamos solo headerText, sino agregamos la lista
+  const hasOptionsAlready = headerText.includes('1.') || headerText.includes('*1.*');
+  const plainText = hasOptionsAlready 
+    ? headerText 
+    : `${headerText}\n\n` + buttons.map((b, i) => `*${i + 1}.* ${b.title}`).join('\n');
+
   if (!whapiToken) {
-    // Si no hay Whapi, enviar como texto plano con lista
-    const fallbackText = `${headerText}\n\n` + buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
-    return await sendWhatsAppMessage(to, fallbackText);
+    return await sendWhatsAppMessage(to, plainText);
   }
 
   try {
@@ -349,10 +354,8 @@ async function sendWhapiButtons(to: string, headerText: string, buttons: Array<{
     console.log(`[Whapi Buttons Sent] Botones enviados a ${cleanTo}:`, result);
     return result;
   } catch (err: any) {
-    console.error('[Whapi Buttons Error]:', err.message || err);
-    // Si falla el interactive, enviamos como texto plano
-    const fallbackText = `${headerText}\n\n` + buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
-    return await sendWhatsAppMessage(to, fallbackText);
+    console.warn('[Whapi Buttons Fallback to Plain Text]:', err.message || err);
+    return await sendWhatsAppMessage(to, plainText);
   }
 }
 
