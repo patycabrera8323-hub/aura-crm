@@ -100,10 +100,18 @@ async function callOpenAICompatible(
       let replyText = data.choices?.[0]?.message?.content || '';
 
       // Si el modelo incluye su proceso de pensamiento (Reasoning/Thinking block), extraer la respuesta final
-      if (replyText.includes("Here's a thinking process:") || replyText.includes("<think>")) {
-        const parts = replyText.split(/\n\n+/);
-        // La respuesta final es el último bloque coherente generado
-        replyText = parts[parts.length - 1] || replyText;
+      if (replyText.includes("**Draft Response") || replyText.includes("**Formulate Response") || replyText.includes("thinking process") || replyText.includes("<think>")) {
+        // Si hay una sección explícita de Draft Response:
+        const draftMatch = replyText.match(/\*\*Draft Response[^*]*\*\*:\s*([\s\S]*?)(?=\n\s*(?:Check against rules|Rules applied|\*\*|$))/i);
+        if (draftMatch && draftMatch[1]) {
+          replyText = draftMatch[1].trim();
+        } else {
+          // Si no, tomar el último párrafo después del razonamiento
+          const paragraphs = replyText.split(/\n\n+/).filter((p: string) => !p.trim().startsWith('1.') && !p.trim().startsWith('2.') && !p.trim().startsWith('3.') && !p.trim().startsWith('4.') && !p.trim().startsWith('5.') && !p.trim().startsWith('**'));
+          if (paragraphs.length > 0) {
+            replyText = paragraphs[paragraphs.length - 1];
+          }
+        }
         replyText = replyText.replace(/<\/think>/g, '').trim();
       }
 
