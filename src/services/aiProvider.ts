@@ -97,7 +97,16 @@ async function callOpenAICompatible(
       }
 
       const data = await res.json();
-      const replyText = data.choices?.[0]?.message?.content || '';
+      let replyText = data.choices?.[0]?.message?.content || '';
+
+      // Si el modelo incluye su proceso de pensamiento (Reasoning/Thinking block), extraer la respuesta final
+      if (replyText.includes("Here's a thinking process:") || replyText.includes("<think>")) {
+        const parts = replyText.split(/\n\n+/);
+        // La respuesta final es el último bloque coherente generado
+        replyText = parts[parts.length - 1] || replyText;
+        replyText = replyText.replace(/<\/think>/g, '').trim();
+      }
+
       const inputTokens = data.usage?.prompt_tokens || 0;
       const outputTokens = data.usage?.completion_tokens || 0;
 
