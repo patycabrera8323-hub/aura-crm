@@ -29,7 +29,7 @@ const PROVIDER_CONFIGS: Record<string, { baseURL: string; defaultModel: string; 
   },
   nvidia: {
     baseURL: 'https://integrate.api.nvidia.com/v1',
-    defaultModel: 'meta/llama-3.1-8b-instruct',
+    defaultModel: 'meta/llama-3.3-70b-instruct',
     apiKeyEnv: 'NVIDIA_API_KEY'
   }
 };
