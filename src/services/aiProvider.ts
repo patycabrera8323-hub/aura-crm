@@ -29,9 +29,9 @@ const PROVIDER_CONFIGS: Record<string, { baseURL: string; models: string[]; getA
   groq: {
     baseURL: 'https://api.groq.com/openai/v1',
     models: [
-      'deepseek-r1-distill-llama-70b',
-      'llama-3.3-70b-versatile',
-      'qwen-2.5-32b'
+      'qwen/qwen3.8-27b',
+      'openai/gpt-oss-120b',
+      'deepseek-r1-distill-llama-70b'
     ],
     getApiKey: () => process.env.GROQ_API_KEY || process.env.GROK_API_KEY
   },
