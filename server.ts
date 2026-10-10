@@ -321,15 +321,19 @@ async function sendWhapiButtons(to: string, headerText: string, buttons: Array<{
         },
         action: {
           buttons: buttons.map(b => ({
-            type: 'reply',
-            reply: {
-              id: b.id,
-              title: b.title.slice(0, 20) // Whapi límite máx 20 caracteres por botón
-            }
+            id: b.id,
+            title: b.title.slice(0, 20),
+            type: 'reply'
           }))
         }
       }),
     });
+
+    if (!res.ok) {
+      const errBody = await res.json();
+      throw new Error(JSON.stringify(errBody));
+    }
+
     const result = await res.json();
     console.log(`[Whapi Buttons Sent] Botones enviados a ${cleanTo}:`, result);
     return result;
