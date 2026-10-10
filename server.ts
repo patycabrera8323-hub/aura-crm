@@ -385,14 +385,18 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
       return;
     }
 
-    // Extraer texto o ID de botón presionado (soporta Whapi interactive, quick_reply, buttons y texto estándar)
-    const buttonId = whapiMessage?.action?.button?.id ||
+    // Extraer texto o ID de botón presionado
+    // Whapi envía type:"reply" con los datos en whapiMessage.reply.id / reply.title
+    const buttonId = whapiMessage?.reply?.id ||             // ← type:"reply" de Whapi (el más común)
+                     whapiMessage?.action?.button?.id ||
                      whapiMessage?.action?.reply?.id ||
                      whapiMessage?.interactive?.button_reply?.id || 
                      whapiMessage?.button_reply?.id ||
                      whapiMessage?.button?.id;
 
-    const buttonTitle = whapiMessage?.action?.button?.text ||
+    const buttonTitle = whapiMessage?.reply?.title ||       // ← type:"reply" de Whapi
+                        whapiMessage?.reply?.text ||
+                        whapiMessage?.action?.button?.text ||
                         whapiMessage?.action?.reply?.title ||
                         whapiMessage?.interactive?.button_reply?.title || 
                         whapiMessage?.button_reply?.title ||

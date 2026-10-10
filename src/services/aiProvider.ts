@@ -127,19 +127,20 @@ export async function generateCascadeResponse(
   messages: AIMessage[],
   systemInstruction: string
 ): Promise<AIResponse> {
-  // Jerarquía definida: 1° NVIDIA -> 2° Groq -> 3° Cerebras
-  const providers: Array<'nvidia' | 'groq' | 'cerebras'> = ['nvidia', 'groq', 'cerebras'];
+  // Jerarquía: 1° Groq -> 2° Cerebras -> 3° NVIDIA
+  // (NVIDIA al último hasta que la clave tenga permisos activos)
+  const providers: Array<'groq' | 'cerebras' | 'nvidia'> = ['groq', 'cerebras', 'nvidia'];
 
   for (const provider of providers) {
     try {
       console.log(`[AI Cascade] Intentando proveedor: ${provider}...`);
       const result = await callOpenAICompatible(provider, messages, systemInstruction);
-      console.log(`[AI Cascade] Éxito con proveedor: ${provider} (Modelo: ${result.model})`);
+      console.log(`[AI Cascade] ✅ Éxito con proveedor: ${provider} (Modelo: ${result.model})`);
       return result;
     } catch (err: any) {
-      console.warn(`[AI Cascade] Falló ${provider}: ${err.message}. Intentando siguiente en cascada...`);
+      console.warn(`[AI Cascade] ⚠️ Falló ${provider}: ${err.message?.substring(0, 120)}. Intentando siguiente...`);
     }
   }
 
-  throw new Error('Todos los proveedores de la cascada (NVIDIA, Groq, Cerebras) fallaron.');
+  throw new Error('Todos los proveedores de la cascada (Groq, Cerebras, NVIDIA) fallaron.');
 }
