@@ -12,6 +12,7 @@ import {
   recordAiUsage, 
   getRecentMessages 
 } from './src/services/supabase.js';
+import { generateCascadeResponse, AIMessage } from './src/services/aiProvider.js';
 
 dotenv.config();
 
@@ -237,7 +238,6 @@ Devuelve un JSON con:
 
 // Helper to send messages back to user through Whapi.cloud OR Meta Cloud API
 async function sendWhatsAppMessage(to: string, messageText: string) {
-  // 1. If Whapi Token is present, prioritize Whapi.cloud (QR Web bridge)
   const whapiToken = process.env.WHAPI_TOKEN;
   if (whapiToken) {
     try {
@@ -262,7 +262,7 @@ async function sendWhatsAppMessage(to: string, messageText: string) {
     }
   }
 
-  // 2. Otherwise fallback to Meta WhatsApp Cloud API
+  // Fallback to Meta WhatsApp Cloud API
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -285,7 +285,6 @@ async function sendWhatsAppMessage(to: string, messageText: string) {
         }),
       });
       const result = await res.json();
-      console.log(`[Meta WhatsApp Sent] Mensaje enviado a ${cleanTo}:`, result);
       return result;
     } catch (err: any) {
       console.error('[WhatsApp Send Error]:', err.message || err);
@@ -293,8 +292,53 @@ async function sendWhatsAppMessage(to: string, messageText: string) {
     }
   }
 
-  console.warn('[WhatsApp Send] Ni WHAPI_TOKEN ni credenciales de Meta están configuradas en las variables de entorno.');
   return null;
+}
+
+// Helper para enviar Botones Interactivos en WhatsApp vía Whapi (0 Tokens)
+async function sendWhapiButtons(to: string, headerText: string, buttons: Array<{ id: string; title: string }>) {
+  const whapiToken = process.env.WHAPI_TOKEN;
+  if (!whapiToken) {
+    // Si no hay Whapi, enviar como texto plano con lista
+    const fallbackText = `${headerText}\n\n` + buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+    return await sendWhatsAppMessage(to, fallbackText);
+  }
+
+  try {
+    const url = 'https://gate.whapi.cloud/messages/interactive';
+    const cleanTo = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${whapiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: cleanTo,
+        type: 'button',
+        body: {
+          text: headerText
+        },
+        action: {
+          buttons: buttons.map(b => ({
+            type: 'reply',
+            reply: {
+              id: b.id,
+              title: b.title.slice(0, 20) // Whapi límite máx 20 caracteres por botón
+            }
+          }))
+        }
+      }),
+    });
+    const result = await res.json();
+    console.log(`[Whapi Buttons Sent] Botones enviados a ${cleanTo}:`, result);
+    return result;
+  } catch (err: any) {
+    console.error('[Whapi Buttons Error]:', err.message || err);
+    // Si falla el interactive, enviamos como texto plano
+    const fallbackText = `${headerText}\n\n` + buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
+    return await sendWhatsAppMessage(to, fallbackText);
+  }
 }
 
 // 4. Webhook Receiver for Meta & Whapi.cloud WhatsApp & Auto-responder
@@ -347,7 +391,55 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
       }
     }
 
-    // 2. Motor de Reglas (0 Tokens de IA)
+    // 2. Motor de Reglas y Botones Interactivos (0 Tokens de IA)
+    const lowerText = text.toLowerCase().trim();
+
+    // Si es saludo o menú inicial: enviar Botones de Respuesta Rápida
+    if (lowerText.includes('hola') || lowerText.includes('buenos dias') || lowerText.includes('buenas tardes') || lowerText === 'menu') {
+      const welcomeText = `¡Hola ${senderName}! 👋 Bienvenido a Clínica Aura Especialistas.\n\n¿Cómo podemos ayudarte hoy? Elige una opción:`;
+      const buttons = [
+        { id: 'btn_precios', title: '💰 Ver Precios' },
+        { id: 'btn_citas', title: '📅 Agendar Cita' },
+        { id: 'btn_asesor', title: '👨‍⚕️ Hablar con Asesor' }
+      ];
+
+      if (conversation) {
+        await saveMessage(conversation.id, 'bot', welcomeText);
+      }
+      await sendWhapiButtons(from, welcomeText, buttons);
+      return;
+    }
+
+    // Si el usuario presionó uno de los botones o escribió la palabra clave
+    if (lowerText === 'btn_precios' || lowerText.includes('precio') || lowerText.includes('costo') || lowerText.includes('cuanto vale')) {
+      const priceText = `🩺 *Precios de Consulta y Valoración:*\n\n• Consulta General y Diagnóstico: *$45 USD / $850 MXN*\n• Incluye revisión médica completa y plan de tratamiento.\n\n¿Deseas apartar tu espacio para esta semana?`;
+      const buttons = [
+        { id: 'btn_citas', title: '📅 Agendar Cita' },
+        { id: 'btn_ubicacion', title: '📍 Ubicación' }
+      ];
+      if (conversation) await saveMessage(conversation.id, 'bot', priceText);
+      await sendWhapiButtons(from, priceText, buttons);
+      return;
+    }
+
+    if (lowerText === 'btn_citas' || lowerText.includes('agendar') || lowerText.includes('cita') || lowerText.includes('horario')) {
+      const appointmentText = `📅 *Disponibilidad de Citas:*\n\nContamos con espacios disponibles:\n• Jueves: 10:30 AM o 4:00 PM\n• Viernes: 11:00 AM o 5:30 PM\n\n¿Cuál de estos horarios te queda mejor?`;
+      if (conversation) await saveMessage(conversation.id, 'bot', appointmentText);
+      await sendWhatsAppMessage(from, appointmentText);
+      return;
+    }
+
+    if (lowerText === 'btn_asesor' || lowerText.includes('asesor') || lowerText.includes('humano') || lowerText.includes('persona')) {
+      const handoffText = `👨‍⚕️ Entendido, ${senderName}. He transferido esta conversación a uno de nuestros asesores humanos. En breve te responderán por aquí.`;
+      if (conversation) {
+        await updateConversationStatus(conversation.id, 'human_handoff');
+        await saveMessage(conversation.id, 'bot', handoffText);
+      }
+      await sendWhatsAppMessage(from, handoffText);
+      return;
+    }
+
+    // Reglas dinámicas adicionales desde la base de datos de Supabase
     const matchedRule = await matchRule(text);
     if (matchedRule) {
       console.log(`[Regla Coincidente] Ejecutando regla para "${matchedRule.keyword}" (Acción: ${matchedRule.action})`);
@@ -364,62 +456,81 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
       return; // Fin del flujo sin gastar tokens
     }
 
-    // 3. IA Fallback / Generativa (Cuando no hay regla fija)
+    // 3. IA Generativa en Cascada (Cerebras -> Grok -> NVIDIA)
     // Recuperar memoria corta (últimos 6 mensajes de la conversación)
-    let recentHistoryStr = '';
+    let aiMessages: AIMessage[] = [];
     if (conversation) {
       const recentMessages = await getRecentMessages(conversation.id, 6);
-      recentHistoryStr = recentMessages
-        .map((m: any) => `${m.sender === 'user' ? senderName : 'AuraBot'}: ${m.text}`)
-        .join('\n');
+      aiMessages = recentMessages.map((m: any) => ({
+        role: (m.sender === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+        content: m.text
+      }));
+    } else {
+      aiMessages = [{ role: 'user', content: text }];
     }
+
+    const systemInstruction = `Eres AuraBot, el asistente médico y de atención de Clínica Aura Especialistas.
+Tu labor es responder dudas con calidez, empatía y brevedad (máximo 2 párrafos cortos aptos para pantalla de WhatsApp).
+Reglas estrictas de seguridad:
+- No inventes precios ni procedimientos no confirmados.
+- Si no estás seguro de algo médico o administrativo, sugiere hablar con un asesor humano.
+- Usa tono profesional y empático.`;
 
     let replyText = '';
     let inputTokens = 0;
     let outputTokens = 0;
+    let providerUsed = 'fallback';
+    let modelUsed = 'smart-template';
+    let estimatedCost = 0;
 
-    if (ai) {
-      try {
-        const prompt = recentHistoryStr 
-          ? `Historial reciente:\n${recentHistoryStr}\n\nÚltimo mensaje de ${senderName}:\n"${text}"\n\nResponde como asistente de Clínica Aura:`
-          : `Mensaje de WhatsApp de ${senderName}:\n"${text}"\n\nResponde como asistente de Clínica Aura:`;
+    // Ejecutar Cascada de IA (Cerebras / Grok / NVIDIA)
+    try {
+      const cascadeResult = await generateCascadeResponse(aiMessages, systemInstruction);
+      replyText = cascadeResult.text;
+      inputTokens = cascadeResult.inputTokens;
+      outputTokens = cascadeResult.outputTokens;
+      providerUsed = cascadeResult.provider;
+      modelUsed = cascadeResult.model;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
-          contents: prompt,
-          config: {
-            systemInstruction: 'Eres AuraBot, asistente virtual de Clínica Aura Especialistas. Brindas atención empática, respondes dudas de consultas/precios y orientas para agendar citas. Mensajes breves (máx 2 párrafos) con emojis sutiles aptos para WhatsApp. No inventes precios ni procedimientos no mencionados.',
-            temperature: 0.7,
-          }
-        });
-
-        replyText = response.text || generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
-
-        // Capturar uso de tokens reportado por la API
-        if ((response as any).usageMetadata) {
-          inputTokens = (response as any).usageMetadata.promptTokenCount || 0;
-          outputTokens = (response as any).usageMetadata.candidatesTokenCount || 0;
+      // Cálculo de costo estimado según proveedor
+      if (providerUsed === 'cerebras') {
+        estimatedCost = (inputTokens + outputTokens) * 0.0000001; // Cerebras ultrabarato
+      } else if (providerUsed === 'grok') {
+        estimatedCost = (inputTokens * 0.000002) + (outputTokens * 0.00001);
+      } else if (providerUsed === 'nvidia') {
+        estimatedCost = (inputTokens + outputTokens) * 0.0000002;
+      }
+    } catch (aiErr: any) {
+      console.warn('[AI Cascade Warning] Falló la cascada, usando fallback local:', aiErr.message);
+      // Respaldo con Gemini si estuviera disponible, o plantilla inteligente
+      if (ai) {
+        try {
+          const geminiRes = await ai.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: `Mensaje de ${senderName}: "${text}"\n\nResponde como asistente de Clínica Aura:`,
+            config: { systemInstruction, temperature: 0.7 }
+          });
+          replyText = geminiRes.text || generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
+          providerUsed = 'google';
+          modelUsed = 'gemini-2.0-flash';
+        } catch {
+          replyText = generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
         }
-      } catch (e: any) {
-        console.error('Error generando respuesta con IA:', e.message);
+      } else {
         replyText = generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
       }
-    } else {
-      replyText = generateSmartFallbackReply(text, 'AuraBot', 'Clínica Aura Especialistas');
     }
 
-    // 4. Guardar respuesta y registrar consumo de tokens
+    // 4. Guardar respuesta y registrar consumo en ai_usage
     if (conversation) {
       await saveMessage(conversation.id, 'bot', replyText);
 
       if (inputTokens > 0 || outputTokens > 0) {
-        // Costo estimado aproximado para Gemini Flash (~$0.075 / 1M input, ~$0.30 / 1M output)
-        const estimatedCost = (inputTokens * 0.000000075) + (outputTokens * 0.0000003);
         await recordAiUsage({
           conversationId: conversation.id,
           userId: user?.id,
-          provider: 'google',
-          model: 'gemini-2.0-flash',
+          provider: providerUsed,
+          model: modelUsed,
           inputTokens,
           outputTokens,
           estimatedCost
