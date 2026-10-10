@@ -368,27 +368,28 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
   });
 
   try {
-    // Whapi format check
     const whapiMessage = req.body?.messages?.[0];
-    if (whapiMessage?.from_me) {
-      // Do not reply to messages sent by the bot itself
-      return;
-    }
 
     // Meta format check
     const metaEntry = req.body?.entry?.[0]?.changes?.[0]?.value;
     const metaMessage = metaEntry?.messages?.[0];
     const metaContact = metaEntry?.contacts?.[0];
 
+    // Loguear el mensaje completo recibido
+    if (whapiMessage) {
+      console.log(`[WHAPI RAW MSG]:`, JSON.stringify(whapiMessage));
+    }
+
+    if (whapiMessage?.from_me) {
+      // Do not reply to messages sent by the bot itself
+      return;
+    }
+
     // If it's a status notification (delivered, read, sent), do not reply
     if (!metaMessage && !whapiMessage && (req.body?.entry?.[0]?.changes?.[0]?.value?.statuses || req.body?.statuses)) {
       return;
     }
 
-    // Imprimir mensaje entrante para depuración exhaustiva
-    if (whapiMessage) {
-      console.log(`[WHAPI RAW MSG]:`, JSON.stringify(whapiMessage));
-    }
 
     // Extraer texto o ID de botón presionado
     // En Whapi el botón presionado puede venir en:
