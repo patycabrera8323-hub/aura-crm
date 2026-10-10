@@ -106,23 +106,19 @@ export async function generateCascadeResponse(
   messages: AIMessage[],
   systemInstruction: string
 ): Promise<AIResponse> {
-  const primary = (process.env.AI_PRIMARY_PROVIDER || 'groq').toLowerCase() as 'groq' | 'cerebras' | 'nvidia';
-  const fallback = (process.env.AI_FALLBACK_PROVIDER || 'nvidia').toLowerCase() as 'groq' | 'cerebras' | 'nvidia';
+  // Jerarquía definida: 1° NVIDIA -> 2° Groq -> 3° Cerebras
+  const providers: Array<'nvidia' | 'groq' | 'cerebras'> = ['nvidia', 'groq', 'cerebras'];
 
-  // 1. Intentar proveedor principal
-  try {
-    console.log(`[AI Cascade] Ejecutando proveedor principal: ${primary}...`);
-    return await callOpenAICompatible(primary, messages, systemInstruction);
-  } catch (err: any) {
-    console.warn(`[AI Cascade] Falló el proveedor principal (${primary}): ${err.message}. Saltando al fallback (${fallback})...`);
+  for (const provider of providers) {
+    try {
+      console.log(`[AI Cascade] Intentando proveedor: ${provider}...`);
+      const result = await callOpenAICompatible(provider, messages, systemInstruction);
+      console.log(`[AI Cascade] Éxito con proveedor: ${provider} (Modelo: ${result.model})`);
+      return result;
+    } catch (err: any) {
+      console.warn(`[AI Cascade] Falló ${provider}: ${err.message}. Intentando siguiente en cascada...`);
+    }
   }
 
-  // 2. Intentar proveedor de respaldo
-  try {
-    console.log(`[AI Cascade] Ejecutando proveedor fallback: ${fallback}...`);
-    return await callOpenAICompatible(fallback, messages, systemInstruction);
-  } catch (fallbackErr: any) {
-    console.error(`[AI Cascade] También falló el proveedor fallback (${fallback}): ${fallbackErr.message}`);
-    throw fallbackErr;
-  }
+  throw new Error('Todos los proveedores de la cascada (NVIDIA, Groq, Cerebras) fallaron.');
 }

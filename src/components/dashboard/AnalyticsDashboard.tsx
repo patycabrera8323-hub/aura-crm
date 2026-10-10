@@ -215,6 +215,137 @@ export const AnalyticsDashboard: React.FC = () => {
 
       </div>
 
+      {/* Live AI Token & Cost Tracker Section */}
+      <AiUsageTrackerSection />
+
     </div>
   );
 };
+
+// Subcomponente: Contador de Tokens y Costo Estimado en Tiempo Real
+const AiUsageTrackerSection: React.FC = () => {
+  const [stats, setStats] = React.useState<{
+    totalCalls: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalTokens: number;
+    totalCost: number;
+    recentRecords: any[];
+  } | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  const fetchStats = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/ai-usage/stats');
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Error fetching AI stats:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 15000); // Actualizar cada 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="bg-white p-6 rounded-3xl border border-purple-100 shadow-sm space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-purple-600" />
+              Consumo de IA & Contador de Tokens (NVIDIA / Groq / Cerebras)
+            </h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 animate-pulse">
+              En Vivo
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Métricas de gasto de tokens, llamadas ejecutadas y costo estimado en dólares ($USD) registradas en Supabase.
+          </p>
+        </div>
+        <button 
+          onClick={fetchStats}
+          className="self-start sm:self-auto px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+        >
+          {isLoading ? 'Actualizando...' : '↻ Refrescar Métricas'}
+        </button>
+      </div>
+
+      {/* Grid de 4 Métricas de Tokens */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Llamadas a IA</span>
+          <p className="text-2xl font-black text-slate-900 mt-1">{stats?.totalCalls ?? 0}</p>
+          <span className="text-[10px] text-slate-500 font-medium">Interacciones generativas</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-100">
+          <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider block">Input Tokens</span>
+          <p className="text-2xl font-black text-purple-900 mt-1">{(stats?.totalInputTokens ?? 0).toLocaleString()}</p>
+          <span className="text-[10px] text-purple-600 font-medium">Contexto + historial</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100">
+          <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider block">Output Tokens</span>
+          <p className="text-2xl font-black text-indigo-900 mt-1">{(stats?.totalOutputTokens ?? 0).toLocaleString()}</p>
+          <span className="text-[10px] text-indigo-600 font-medium">Respuestas generadas</span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100">
+          <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider block">Costo Estimado</span>
+          <p className="text-2xl font-black text-emerald-900 mt-1">
+            ${(stats?.totalCost ?? 0).toFixed(4)} <span className="text-xs font-bold text-emerald-700">USD</span>
+          </p>
+          <span className="text-[10px] text-emerald-700 font-medium">
+            Total tokens: {(stats?.totalTokens ?? 0).toLocaleString()}
+          </span>
+        </div>
+      </div>
+
+      {/* Historial Reciente de Llamadas */}
+      {stats?.recentRecords && stats.recentRecords.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Últimas Interacciones de IA Registradas:</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50 text-slate-400 font-semibold border-b border-slate-100">
+                <tr>
+                  <th className="py-2 px-3">Proveedor</th>
+                  <th className="py-2 px-3">Modelo</th>
+                  <th className="py-2 px-3 text-right">Input</th>
+                  <th className="py-2 px-3 text-right">Output</th>
+                  <th className="py-2 px-3 text-right">Total Tokens</th>
+                  <th className="py-2 px-3 text-right">Costo Estimado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {stats.recentRecords.map((r, i) => (
+                  <tr key={r.id || i} className="hover:bg-purple-50/40 transition-colors">
+                    <td className="py-2 px-3 font-bold text-purple-700 uppercase">{r.provider}</td>
+                    <td className="py-2 px-3 text-slate-800">{r.model}</td>
+                    <td className="py-2 px-3 text-right text-slate-500">{r.input_tokens}</td>
+                    <td className="py-2 px-3 text-right text-slate-500">{r.output_tokens}</td>
+                    <td className="py-2 px-3 text-right font-bold text-slate-900">{r.total_tokens}</td>
+                    <td className="py-2 px-3 text-right font-bold text-emerald-600">
+                      ${Number(r.estimated_cost || 0).toFixed(5)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+

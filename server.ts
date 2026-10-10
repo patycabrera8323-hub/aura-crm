@@ -10,7 +10,8 @@ import {
   updateConversationStatus, 
   matchRule, 
   recordAiUsage, 
-  getRecentMessages 
+  getRecentMessages,
+  getAiUsageStats
 } from './src/services/supabase.js';
 import { generateCascadeResponse, AIMessage } from './src/services/aiProvider.js';
 
@@ -233,6 +234,16 @@ Devuelve un JSON con:
       summary: 'Lead en proceso de atención personalizada.',
       nextAction: 'Dar seguimiento a la solicitud de información.',
     });
+  }
+});
+
+// Endpoint para consultar estadísticas de consumo de IA y tokens en el CRM
+app.get('/api/ai-usage/stats', async (_req, res) => {
+  try {
+    const stats = await getAiUsageStats();
+    return res.json(stats);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

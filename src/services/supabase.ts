@@ -219,3 +219,54 @@ export async function getRecentMessages(conversationId: string, limit = 6) {
     return [];
   }
 }
+
+// 8. Obtener estadísticas de consumo de tokens y costos para el CRM
+export async function getAiUsageStats() {
+  if (!supabase) {
+    return {
+      totalCalls: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalTokens: 0,
+      totalCost: 0,
+      recentRecords: []
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('ai_usage')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    const records = data || [];
+    const totalCalls = records.length;
+    const totalInputTokens = records.reduce((acc, r) => acc + (r.input_tokens || 0), 0);
+    const totalOutputTokens = records.reduce((acc, r) => acc + (r.output_tokens || 0), 0);
+    const totalTokens = totalInputTokens + totalOutputTokens;
+    const totalCost = records.reduce((acc, r) => acc + Number(r.estimated_cost || 0), 0);
+
+    return {
+      totalCalls,
+      totalInputTokens,
+      totalOutputTokens,
+      totalTokens,
+      totalCost,
+      recentRecords: records.slice(0, 10)
+    };
+  } catch (err: any) {
+    console.error('[Supabase getAiUsageStats Error]:', err.message);
+    return {
+      totalCalls: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalTokens: 0,
+      totalCost: 0,
+      recentRecords: []
+    };
+  }
+}
+
