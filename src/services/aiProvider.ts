@@ -68,7 +68,7 @@ async function callOpenAICompatible(
   // Probar cada modelo de la lista del proveedor si alguno da 404
   for (const model of config.models) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 segundos timeout
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 segundos timeout para DeepSeek/NVIDIA
 
     try {
       const res = await fetch(`${config.baseURL}/chat/completions`, {

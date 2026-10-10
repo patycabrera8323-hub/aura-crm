@@ -392,26 +392,27 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
 
 
     // Extraer texto o ID de botón presionado
-    // En Whapi el botón presionado puede venir en:
-    // - whapiMessage.reply.id o whapiMessage.reply.title
-    // - whapiMessage.action.button.id
-    // - whapiMessage.interactive.button_reply.id
-    // - whapiMessage.button_reply.id
-    // - whapiMessage.body
-    // - whapiMessage.text.body
-    // - whapiMessage.context.quoted_content o similar
-    const buttonId = whapiMessage?.reply?.id ||
-                     whapiMessage?.reply?.buttons_response?.selected_button_id ||
-                     whapiMessage?.interactive?.button_reply?.id ||
-                     whapiMessage?.interactive?.list_reply?.id ||
-                     whapiMessage?.action?.button?.id ||
-                     whapiMessage?.action?.reply?.id ||
-                     whapiMessage?.button_reply?.id ||
-                     whapiMessage?.button?.id ||
-                     whapiMessage?.context?.id ||
-                     (whapiMessage?.type === 'reply' && typeof whapiMessage?.reply === 'string' ? whapiMessage.reply : undefined);
+    // Confirmado desde logs de Whapi:
+    // whapiMessage.reply.buttons_reply.id = "ButtonsV3:btn_precios"
+    // whapiMessage.reply.buttons_reply.title = "💰 Ver Precios"
+    let buttonId = whapiMessage?.reply?.buttons_reply?.id ||
+                   whapiMessage?.reply?.id ||
+                   whapiMessage?.reply?.buttons_response?.selected_button_id ||
+                   whapiMessage?.interactive?.button_reply?.id ||
+                   whapiMessage?.interactive?.list_reply?.id ||
+                   whapiMessage?.action?.button?.id ||
+                   whapiMessage?.action?.reply?.id ||
+                   whapiMessage?.button_reply?.id ||
+                   whapiMessage?.button?.id ||
+                   whapiMessage?.context?.id;
 
-    const buttonTitle = whapiMessage?.reply?.title ||
+    // Si viene con prefijo como "ButtonsV3:btn_precios", limpiar prefijo
+    if (buttonId && typeof buttonId === 'string' && buttonId.includes(':')) {
+      buttonId = buttonId.split(':').pop();
+    }
+
+    const buttonTitle = whapiMessage?.reply?.buttons_reply?.title ||
+                        whapiMessage?.reply?.title ||
                         whapiMessage?.reply?.buttons_response?.selected_display_text ||
                         whapiMessage?.reply?.text ||
                         whapiMessage?.interactive?.button_reply?.title ||
@@ -426,7 +427,6 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
                     whapiMessage?.text?.body || 
                     whapiMessage?.text || 
                     whapiMessage?.body || 
-                    (typeof whapiMessage?.reply === 'string' ? whapiMessage.reply : undefined) ||
                     metaMessage?.text?.body || 
                     req.body?.text;
 
