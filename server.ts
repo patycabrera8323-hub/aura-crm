@@ -459,42 +459,74 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     // 2. Motor de Reglas y Botones Interactivos (0 Tokens de IA)
     const lowerText = text.toLowerCase().trim();
 
-    // Respuestas a opciones numéricas o botones:
-    // Opción 1: Precios
+    // Respuestas a opciones numéricas o botones (Español e Inglés):
+    // Opción 1: Precios / Prices
     const isPriceQuery = lowerText === '1' || 
                          lowerText === 'btn_precios' || 
                          lowerText.includes('ver precio') || 
                          lowerText.includes('precio') || 
                          lowerText.includes('costo') || 
                          lowerText.includes('cuanto vale') ||
-                         lowerText.includes('tarifa');
+                         lowerText.includes('tarifa') ||
+                         lowerText.includes('price') ||
+                         lowerText.includes('cost') ||
+                         lowerText.includes('how much') ||
+                         lowerText.includes('rate');
 
-    // Opción 2: Citas
+    // Opción 2: Citas / Appointments
     const isAppointmentQuery = lowerText === '2' || 
                               lowerText === 'btn_citas' || 
                               lowerText.includes('agendar') || 
                               lowerText.includes('cita') || 
                               lowerText.includes('horario') || 
-                              lowerText.includes('turno');
+                              lowerText.includes('turno') ||
+                              lowerText.includes('appointment') ||
+                              lowerText.includes('book') ||
+                              lowerText.includes('schedule') ||
+                              lowerText.includes('available');
 
-    // Opción 3: Asesor
+    // Opción 3: Asesor / Advisor / Human
     const isHandoffQuery = lowerText === '3' || 
                           lowerText === 'btn_asesor' || 
                           lowerText.includes('asesor') || 
                           lowerText.includes('humano') || 
-                          lowerText.includes('persona');
+                          lowerText.includes('persona') ||
+                          lowerText.includes('human') ||
+                          lowerText.includes('agent') ||
+                          lowerText.includes('representative') ||
+                          lowerText.includes('talk to someone');
 
-    // Opción 4: Ubicación
+    // Opción 4: Ubicación / Location
     const isLocationQuery = lowerText === '4' || 
                            lowerText === 'btn_ubicacion' || 
                            lowerText.includes('ubicacion') || 
                            lowerText.includes('donde estan') || 
-                           lowerText.includes('direccion');
+                           lowerText.includes('direccion') ||
+                           lowerText.includes('location') ||
+                           lowerText.includes('where are you') ||
+                           lowerText.includes('address');
+
+    // Detectar si el usuario se comunica en inglés
+    const isEnglish = lowerText.includes('hello') || 
+                      lowerText.includes('hi') || 
+                      lowerText.includes('good morning') || 
+                      lowerText.includes('good afternoon') ||
+                      lowerText.includes('price') ||
+                      lowerText.includes('appointment') ||
+                      lowerText.includes('location') ||
+                      lowerText.includes('doctor') ||
+                      lowerText.includes('help');
 
     // Flujo de Precios (Opción 1)
     if (isPriceQuery) {
-      const priceText = `🩺 *Precios de Consulta y Valoración:*\n\n• Consulta General y Diagnóstico: *$45 USD / $850 MXN*\n• Incluye revisión médica completa y plan personalizado de tratamiento.\n\n¿Deseas apartar tu espacio para esta semana?\n\nResponde con:\n*2.* 📅 Agendar Cita\n*4.* 📍 Ubicación de la clínica`;
-      const buttons = [
+      const priceText = isEnglish
+        ? `🩺 *Consultation and Evaluation Prices:*\n\n• General Consultation & Diagnosis: *$45 USD / $850 MXN*\n• Includes comprehensive medical evaluation and personalized treatment plan.\n\nWould you like to book a slot for this week?\n\nReply with:\n*2.* 📅 Book Appointment\n*4.* 📍 Clinic Location`
+        : `🩺 *Precios de Consulta y Valoración:*\n\n• Consulta General y Diagnóstico: *$45 USD / $850 MXN*\n• Incluye revisión médica completa y plan personalizado de tratamiento.\n\n¿Deseas apartar tu espacio para esta semana?\n\nResponde con:\n*2.* 📅 Agendar Cita\n*4.* 📍 Ubicación de la clínica`;
+      
+      const buttons = isEnglish ? [
+        { id: 'btn_citas', title: '📅 Book Appointment' },
+        { id: 'btn_ubicacion', title: '📍 Location' }
+      ] : [
         { id: 'btn_citas', title: '📅 Agendar Cita' },
         { id: 'btn_ubicacion', title: '📍 Ubicación' }
       ];
@@ -505,7 +537,9 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
 
     // Flujo de Citas (Opción 2)
     if (isAppointmentQuery) {
-      const appointmentText = `📅 *Disponibilidad de Citas:*\n\nContamos con espacios disponibles esta semana:\n• *Jueves:* 10:30 AM o 4:00 PM\n• *Viernes:* 11:00 AM o 5:30 PM\n\n¿Cuál horario te queda mejor? Si prefieres otro día, indícanoslo y con gusto te buscamos cupo.`;
+      const appointmentText = isEnglish
+        ? `📅 *Appointment Availability:*\n\nWe have slots open this week:\n• *Thursday:* 10:30 AM or 4:00 PM\n• *Friday:* 11:00 AM or 5:30 PM\n\nWhich time works best for you? If you prefer another day, please let us know!`
+        : `📅 *Disponibilidad de Citas:*\n\nContamos con espacios disponibles esta semana:\n• *Jueves:* 10:30 AM o 4:00 PM\n• *Viernes:* 11:00 AM o 5:30 PM\n\n¿Cuál horario te queda mejor? Si prefieres otro día, indícanoslo y con gusto te buscamos cupo.`;
       if (conversation) await saveMessage(conversation.id, 'bot', appointmentText);
       await sendWhatsAppMessage(from, appointmentText);
       return;
@@ -513,7 +547,9 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
 
     // Flujo de Asesor Humano (Opción 3)
     if (isHandoffQuery) {
-      const handoffText = `👨‍⚕️ Entendido, ${senderName}. He transferido esta conversación a uno de nuestros asesores humanos. En breve te responderán directamente por aquí.`;
+      const handoffText = isEnglish
+        ? `👨‍⚕️ Got it, ${senderName}. I have transferred this chat to one of our human coordinators. Someone will assist you shortly here.`
+        : `👨‍⚕️ Entendido, ${senderName}. He transferido esta conversación a uno de nuestros asesores humanos. En breve te responderán directamente por aquí.`;
       if (conversation) {
         await updateConversationStatus(conversation.id, 'human_handoff');
         await saveMessage(conversation.id, 'bot', handoffText);
@@ -524,16 +560,36 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
 
     // Flujo de Ubicación (Opción 4)
     if (isLocationQuery) {
-      const locationText = `📍 *Ubicación de Clínica Aura:*\n\nEstamos ubicados en: *Av. Médica Central #500, Torre B, Piso 3*.\nContamos con estacionamiento para pacientes y acceso para personas con movilidad reducida.\n\n¿Te gustaría programar tu visita?`;
+      const locationText = isEnglish
+        ? `📍 *Clínica Aura Location:*\n\nAddress: *Av. Médica Central #500, Tower B, 3rd Floor*.\nWe offer dedicated patient parking and wheelchair accessibility.\n\nWould you like to schedule your visit?`
+        : `📍 *Ubicación de Clínica Aura:*\n\nEstamos ubicados en: *Av. Médica Central #500, Torre B, Piso 3*.\nContamos con estacionamiento para pacientes y acceso para personas con movilidad reducida.\n\n¿Te gustaría programar tu visita?`;
       if (conversation) await saveMessage(conversation.id, 'bot', locationText);
       await sendWhatsAppMessage(from, locationText);
       return;
     }
 
-    // Saludo inicial o palabra 'menu': Enviar menú principal
-    if (lowerText.includes('hola') || lowerText.includes('buenos dias') || lowerText.includes('buenas tardes') || lowerText === 'menu' || lowerText === 'inicio') {
-      const welcomeText = `¡Hola ${senderName}! 👋 Bienvenido a Clínica Aura Especialistas.\n\n¿Cómo podemos ayudarte hoy? Elige una opción o escribe su número:\n\n*1.* 💰 Ver Precios\n*2.* 📅 Agendar Cita\n*3.* 👨‍⚕️ Hablar con Asesor`;
-      const buttons = [
+    // Saludo inicial o palabra 'menu': Enviar menú principal (Soporta español e inglés)
+    const isGreeting = lowerText.includes('hola') || 
+                       lowerText.includes('buenos dias') || 
+                       lowerText.includes('buenas tardes') || 
+                       lowerText.includes('hello') || 
+                       lowerText.includes('hi') || 
+                       lowerText.includes('hey') || 
+                       lowerText.includes('good morning') || 
+                       lowerText.includes('good afternoon') || 
+                       lowerText === 'menu' || 
+                       lowerText === 'inicio';
+
+    if (isGreeting) {
+      const welcomeText = isEnglish
+        ? `Hello ${senderName}! 👋 Welcome to Clínica Aura Specialists.\n\nHow can we help you today? Pick an option or type its number:\n\n*1.* 💰 Prices\n*2.* 📅 Book Appointment\n*3.* 👨‍⚕️ Talk to Advisor`
+        : `¡Hola ${senderName}! 👋 Bienvenido a Clínica Aura Especialistas.\n\n¿Cómo podemos ayudarte hoy? Elige una opción o escribe su número:\n\n*1.* 💰 Ver Precios\n*2.* 📅 Agendar Cita\n*3.* 👨‍⚕️ Hablar con Asesor`;
+      
+      const buttons = isEnglish ? [
+        { id: 'btn_precios', title: '💰 Prices' },
+        { id: 'btn_citas', title: '📅 Book Appointment' },
+        { id: 'btn_asesor', title: '👨‍⚕️ Human Advisor' }
+      ] : [
         { id: 'btn_precios', title: '💰 Ver Precios' },
         { id: 'btn_citas', title: '📅 Agendar Cita' },
         { id: 'btn_asesor', title: '👨‍⚕️ Hablar con Asesor' }
@@ -563,7 +619,7 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
       return; // Fin del flujo sin gastar tokens
     }
 
-    // 3. IA Generativa en Cascada (Cerebras -> Grok -> NVIDIA)
+    // 3. IA Generativa en Cascada (NVIDIA -> Groq -> Cerebras)
     // Recuperar memoria corta (últimos 6 mensajes de la conversación)
     let aiMessages: AIMessage[] = [];
     if (conversation) {
@@ -579,7 +635,8 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     const systemInstruction = `Eres AuraBot, el asistente médico y de atención de Clínica Aura Especialistas.
 Tu labor es responder dudas con calidez, empatía y brevedad (máximo 2 párrafos cortos aptos para pantalla de WhatsApp).
 Reglas estrictas de seguridad:
-- Responde DIRECTAMENTE al paciente en español sin explicar tu proceso de pensamiento ni incluir listas o notas internas.
+- IDIOMA: Detecta automáticamente el idioma del usuario (español o inglés). Responde SIEMPRE en el mismo idioma en el que te escribió el paciente.
+- Responde DIRECTAMENTE al paciente sin explicar tu proceso de pensamiento ni incluir listas o notas internas.
 - No inventes precios ni procedimientos no confirmados.
 - Si no estás seguro de algo médico o administrativo, sugiere hablar con un asesor humano.
 - Usa tono profesional y empático.`;
