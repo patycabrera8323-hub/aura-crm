@@ -40,6 +40,25 @@ const ai = geminiApiKey ? new GoogleGenAI({
 // Helper for fallback responses if API key is missing or offline
 function generateSmartFallbackReply(userMessage: string, botName: string, businessName: string, service?: string): string {
   const lower = userMessage.toLowerCase();
+  
+  // English detection
+  const isEn = lower.includes('hello') || lower.includes('hi') || lower.includes('bad') || lower.includes('sick') || lower.includes('pain') || lower.includes('doctor') || lower.includes('appointment') || lower.includes('price') || lower.includes('help');
+  if (isEn) {
+    if (lower.includes('bad') || lower.includes('sick') || lower.includes('pain') || lower.includes('hurt') || lower.includes('emergency')) {
+      return `I am so sorry you are feeling unwell. I am ${botName} with ${businessName}. Please tell me what symptoms you are experiencing, or if this is an urgent matter, we can schedule an immediate evaluation with our medical team. How can we best support you right now? 🩺`;
+    }
+    if (lower.includes('price') || lower.includes('cost') || lower.includes('how much')) {
+      return `Our consultation and evaluation for ${service || 'general care'} is $45 USD / $850 MXN, including a complete diagnosis and treatment plan. Would you like to schedule an appointment this week? 📅`;
+    }
+    if (lower.includes('appointment') || lower.includes('schedule') || lower.includes('book') || lower.includes('available')) {
+      return `We have appointments available this Thursday at 10:30 AM or Friday at 4:00 PM. Which time works best for you? 🩺✨`;
+    }
+    return `Hello! Thank you for reaching out to ${businessName}. I am ${botName}, your medical care assistant. How can we help you today with your consultation or treatment?`;
+  }
+
+  if (lower.includes('mal') || lower.includes('duele') || lower.includes('dolor') || lower.includes('enfermo') || lower.includes('urgente')) {
+    return `Lamento mucho que te sientas mal. Soy ${botName} de ${businessName}. Cuéntame qué síntomas tienes o si deseas que te agendemos una valoración médica prioritaria de inmediato. ¿En qué podemos ayudarte? 🩺`;
+  }
   if (lower.includes('hola') || lower.includes('buenas') || lower.includes('buenos dias') || lower.includes('tardes')) {
     return `¡Hola! Con mucho gusto te atiendo. Soy ${botName}, asistente de ${businessName}. ¿En qué podemos ayudarte hoy respecto a tus consultas y tratamientos? 😊`;
   }
@@ -503,7 +522,7 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     if (conversation) {
       await saveMessage(conversation.id, 'user', text);
 
-      // Si está transferido a un humano, verificar si el paciente quiere reactivar el bot con un saludo o "menu"
+      // Si está transferido a un humano, verificar si el paciente quiere reactivar el bot con un saludo, "menu" o consulta
       if (conversation.status === 'human_handoff') {
         const lowerClean = text.toLowerCase().trim();
         const wantsReset = lowerClean.includes('hola') || 
@@ -511,6 +530,14 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
                            lowerClean.includes('inicio') || 
                            lowerClean.includes('hello') || 
                            lowerClean.includes('hi') ||
+                           lowerClean.includes('hey') ||
+                           lowerClean.includes('help') ||
+                           lowerClean.includes('bad') ||
+                           lowerClean.includes('feel') ||
+                           lowerClean.includes('sick') ||
+                           lowerClean.includes('mal') ||
+                           lowerClean.includes('ayuda') ||
+                           lowerClean.includes('doctor') ||
                            lowerClean === 'bot' ||
                            lowerClean === 'reiniciar';
 
@@ -701,14 +728,22 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
       aiMessages = [{ role: 'user', content: text }];
     }
 
-    const systemInstruction = `Eres AuraBot, el asistente médico y de atención de Clínica Aura Especialistas.
-Tu labor es responder dudas con calidez, empatía y brevedad (máximo 2 párrafos cortos aptos para pantalla de WhatsApp).
-Reglas estrictas de seguridad:
-- IDIOMA: Detecta automáticamente el idioma del usuario (español o inglés). Responde SIEMPRE en el mismo idioma en el que te escribió el paciente.
-- Responde DIRECTAMENTE al paciente sin explicar tu proceso de pensamiento ni incluir listas o notas internas.
-- No inventes precios ni procedimientos no confirmados.
-- Si no estás seguro de algo médico o administrativo, sugiere hablar con un asesor humano.
-- Usa tono profesional y empático.`;
+    const systemInstruction = `Eres AuraBot, el asistente médico y de atención al paciente de Clínica Aura Especialistas.
+Tu labor es responder dudas con calidez, empatía y brevedad (máximo 2 párrafos cortos de estilo WhatsApp).
+
+REGLAS DE ORO OBLIGATORIAS:
+1. DETECCIÓN AUTOMÁTICA DE IDIOMA (MULTILINGÜE UNIVERSAL):
+   - Detecta de forma estricta el idioma en que escribe el paciente (español, inglés, portugués, francés, etc.).
+   - Responde SIEMPRE en ese MISMO idioma de manera impecable y natural.
+   - Si el paciente dice "I feel bad", "I am sick", "My head hurts", responde 100% en inglés con empatía médica, preguntando síntomas y ofreciendo agendar consulta.
+   - Si escribe en español, responde en español.
+2. FORMATO DIRECTO:
+   - Responde directamente al paciente como en un chat de WhatsApp real.
+   - NUNCA incluyas tus pensamientos internos, etiquetas <think>, notas de razonamiento ni explicaciones de tus decisiones.
+3. PROTOCOLO MÉDICO Y VENTAS:
+   - Sé cálido y compasivo ante malestares o síntomas.
+   - Consulta general de valoración: $45 USD / $850 MXN.
+   - Si el paciente tiene una urgencia grave o solicita hablar con una persona, sugiérele contactar a un asesor o acudir a emergencias.`;
 
     let replyText = '';
     let inputTokens = 0;
