@@ -114,6 +114,32 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // 6. Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  // 7. Polling de Leads reales en vivo desde Supabase vía backend
+  useEffect(() => {
+    const fetchLiveLeads = async () => {
+      try {
+        const res = await fetch('/api/crm/leads-live');
+        if (res.ok) {
+          const liveData: Lead[] = await res.json();
+          if (Array.isArray(liveData) && liveData.length > 0) {
+            setLeads(prev => {
+              // Combinar leads en vivo (tienen prioridad) con los locales
+              const liveIds = new Set(liveData.map(l => l.id));
+              const remaining = prev.filter(l => !liveIds.has(l.id));
+              return [...liveData, ...remaining];
+            });
+          }
+        }
+      } catch (err) {
+        // Silencioso si aún está compilando o sin red
+      }
+    };
+
+    fetchLiveLeads();
+    const interval = setInterval(fetchLiveLeads, 8000); // Refrescar cada 8s
+    return () => clearInterval(interval);
+  }, []);
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('aura_crm_leads', JSON.stringify(leads));
@@ -277,6 +303,17 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLeads(prev => prev.map(lead => {
       if (lead.id === leadId) {
         const nextVal = !lead.aiBotEnabled;
+
+        // Si es un lead en vivo de Supabase, sincronizar el estado en el backend
+        const rawConvId = (lead as any).conversationId || lead.id.replace('lead_live_', '');
+        if (rawConvId && nextVal) {
+          fetch('/api/crm/reactivate-bot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId: rawConvId })
+          }).catch(() => {});
+        }
+
         addToast(
           nextVal ? 'success' : 'info',
           nextVal ? 'Agente IA Activado' : 'Modo Humano Activado',

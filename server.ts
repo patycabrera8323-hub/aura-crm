@@ -11,7 +11,8 @@ import {
   matchRule, 
   recordAiUsage, 
   getRecentMessages,
-  getAiUsageStats
+  getAiUsageStats,
+  getLiveLeadsWithMessages
 } from './src/services/supabase.js';
 import { generateCascadeResponse, AIMessage } from './src/services/aiProvider.js';
 
@@ -247,6 +248,30 @@ app.get('/api/ai-usage/stats', async (_req, res) => {
   }
 });
 
+// Endpoint para consultar leads reales de WhatsApp sincronizados desde Supabase
+app.get('/api/crm/leads-live', async (_req, res) => {
+  try {
+    const liveLeads = await getLiveLeadsWithMessages();
+    return res.json(liveLeads);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para reactivar el bot desde el CRM cuando estaba en human_handoff
+app.post('/api/crm/reactivate-bot', async (req, res) => {
+  try {
+    const { conversationId } = req.body;
+    if (!conversationId) {
+      return res.status(400).json({ error: 'Falta conversationId' });
+    }
+    await updateConversationStatus(conversationId, 'bot_active');
+    return res.json({ success: true, status: 'bot_active' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Helper to send messages back to user through Whapi.cloud OR Meta Cloud API
 async function sendWhatsAppMessage(to: string, messageText: string) {
   const whapiToken = process.env.WHAPI_TOKEN;
@@ -449,10 +474,25 @@ app.post('/api/webhook/whatsapp', async (req, res) => {
     if (conversation) {
       await saveMessage(conversation.id, 'user', text);
 
-      // Si está transferido a un humano, el bot no responde
+      // Si está transferido a un humano, verificar si el paciente quiere reactivar el bot con un saludo o "menu"
       if (conversation.status === 'human_handoff') {
-        console.log(`[Bot Silenciado] La conversación ${conversation.id} está en manos de un asesor humano.`);
-        return;
+        const lowerClean = text.toLowerCase().trim();
+        const wantsReset = lowerClean.includes('hola') || 
+                           lowerClean.includes('menu') || 
+                           lowerClean.includes('inicio') || 
+                           lowerClean.includes('hello') || 
+                           lowerClean.includes('hi') ||
+                           lowerClean === 'bot' ||
+                           lowerClean === 'reiniciar';
+
+        if (wantsReset) {
+          console.log(`[Bot Reactivado] Paciente solicitó reactivar el bot con "${text}".`);
+          await updateConversationStatus(conversation.id, 'bot_active');
+          conversation.status = 'bot_active';
+        } else {
+          console.log(`[Bot Silenciado] La conversación ${conversation.id} está en manos de un asesor humano.`);
+          return;
+        }
       }
     }
 

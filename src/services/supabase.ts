@@ -270,3 +270,84 @@ export async function getAiUsageStats() {
   }
 }
 
+// 9. Obtener Leads reales en vivo desde Supabase (usuarios, conversaciones y mensajes)
+export async function getLiveLeadsWithMessages() {
+  if (!supabase) return [];
+
+  try {
+    // Consultar conversaciones con datos del usuario relacionado
+    const { data: convs, error: convError } = await supabase
+      .from('conversations')
+      .select(`
+        id,
+        status,
+        updated_at,
+        created_at,
+        summary,
+        user_id,
+        users (
+          id,
+          phone,
+          name
+        )
+      `)
+      .order('updated_at', { ascending: false });
+
+    if (convError) throw convError;
+    if (!convs || convs.length === 0) return [];
+
+    // Para cada conversación, obtener sus mensajes
+    const liveLeads = await Promise.all(
+      convs.map(async (conv: any) => {
+        const { data: msgList } = await supabase
+          .from('messages')
+          .select('id, sender, text, created_at')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: true });
+
+        const u = conv.users || {};
+        const formattedChat = (msgList || []).map((m: any) => ({
+          id: m.id,
+          sender: m.sender === 'user' ? ('lead' as const) : ('bot' as const),
+          senderName: m.sender === 'user' ? (u.name || 'Paciente') : 'AuraBot',
+          text: m.text || '',
+          timestamp: m.created_at || new Date().toISOString(),
+          status: 'delivered' as const
+        }));
+
+        const isHandoff = conv.status === 'human_handoff';
+
+        return {
+          id: `lead_live_${conv.id}`,
+          conversationId: conv.id,
+          name: u.name || 'Paciente WhatsApp',
+          phone: u.phone ? (u.phone.startsWith('+') ? u.phone : `+${u.phone}`) : '+52 000 000 0000',
+          email: `${u.phone || 'paciente'}@whatsapp.com`,
+          avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80`,
+          stage: isHandoff ? ('atendiendo' as const) : ('inicio' as const),
+          value: 850,
+          service: 'Consulta de Valoración',
+          source: 'whatsapp_direct' as const,
+          priority: isHandoff ? ('alta' as const) : ('media' as const),
+          createdAt: conv.created_at || new Date().toISOString(),
+          updatedAt: conv.updated_at || new Date().toISOString(),
+          lastActivity: conv.updated_at || new Date().toISOString(),
+          notes: [],
+          tags: ['WhatsApp Live', isHandoff ? 'Asesor Requerido' : 'Bot Activo'],
+          whatsappChat: formattedChat,
+          unreadCount: 0,
+          aiScore: 85,
+          aiSummary: conv.summary || 'Paciente activo en WhatsApp vía AuraBot.',
+          aiBotEnabled: !isHandoff,
+          assignedTo: 'Dr. Roberto M.'
+        };
+      })
+    );
+
+    return liveLeads;
+  } catch (err: any) {
+    console.error('[Supabase getLiveLeadsWithMessages Error]:', err.message);
+    return [];
+  }
+}
+
