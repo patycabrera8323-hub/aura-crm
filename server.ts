@@ -272,6 +272,40 @@ app.post('/api/crm/reactivate-bot', async (req, res) => {
   }
 });
 
+// Endpoint para que el asesor humano envíe mensajes directos desde el CRM por WhatsApp real
+app.post('/api/crm/send-message', async (req, res) => {
+  try {
+    const { phone, message, conversationId } = req.body;
+    if (!phone || !message) {
+      return res.status(400).json({ error: 'Faltan parámetros phone o message' });
+    }
+
+    console.log(`[CRM Send Message] Enviando a ${phone}: "${message.substring(0, 50)}..."`);
+    
+    // 1. Enviar el mensaje a través de WhatsApp (Whapi)
+    const sendResult = await sendWhatsAppMessage(phone, message);
+
+    // 2. Si hay conversationId, guardarlo en Supabase en el historial
+    if (conversationId) {
+      try {
+        await saveMessage({
+          conversation_id: conversationId,
+          sender_type: 'bot', // o asesor
+          content: message,
+          message_type: 'text',
+        });
+      } catch (dbErr: any) {
+        console.error('[CRM Send DB Error]:', dbErr.message || dbErr);
+      }
+    }
+
+    return res.json({ success: true, result: sendResult });
+  } catch (err: any) {
+    console.error('[CRM Send Message Error]:', err.message || err);
+    return res.status(500).json({ error: err.message || 'Error al enviar mensaje' });
+  }
+});
+
 // Helper to send messages back to user through Whapi.cloud OR Meta Cloud API
 async function sendWhatsAppMessage(to: string, messageText: string) {
   const whapiToken = process.env.WHAPI_TOKEN;

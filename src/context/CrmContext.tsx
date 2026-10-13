@@ -372,6 +372,19 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return l;
     }));
 
+    // Si el remitente es un asesor humano (agent), enviarlo realmente a WhatsApp vía /api/crm/send-message
+    if (sender === 'agent' && targetLead.phone) {
+      fetch('/api/crm/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: targetLead.phone,
+          message: text.trim(),
+          conversationId: (targetLead as any).conversationId,
+        })
+      }).catch(err => console.error('Error enviando mensaje real a WhatsApp:', err));
+    }
+
     // If the message came from LEAD and bot is enabled, trigger Gemini AI Auto-Reply
     if (sender === 'lead' && targetLead.aiBotEnabled) {
       setAiIsTyping(true);

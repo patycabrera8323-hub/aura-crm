@@ -313,21 +313,21 @@ export const WhatsAppChatHub: React.FC<WhatsAppChatHubProps> = ({
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${isLead ? 'items-start' : 'items-end'}`}
+                  className={`flex flex-col ${isLead ? 'items-end' : 'items-start'}`}
                 >
                   <div
                     className={`max-w-[85%] sm:max-w-[70%] rounded-2xl p-3.5 shadow-sm text-xs relative ${
                       isLead
-                        ? 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
+                        ? 'bg-gradient-to-br from-[#E2F7CB] to-[#DCF8C6] text-slate-800 border border-emerald-200/60 rounded-tr-none'
                         : isBot
-                        ? 'bg-gradient-to-br from-[#EDE8F9] to-[#E3DCF7] text-purple-950 border border-purple-200 rounded-tr-none'
-                        : 'bg-[#7C3AED] text-white rounded-tr-none'
+                        ? 'bg-white text-slate-900 border border-purple-100 rounded-tl-none shadow-sm'
+                        : 'bg-[#7C3AED] text-white rounded-tl-none'
                     }`}
                   >
                     {/* Header of message (Sender tag) */}
                     <div className="flex items-center gap-1.5 mb-1">
                       {isBot && (
-                        <span className="text-[10px] font-bold text-purple-700 flex items-center gap-1 bg-purple-200/70 px-1.5 py-0.2 rounded-md">
+                        <span className="text-[10px] font-bold text-purple-700 flex items-center gap-1 bg-purple-100 px-1.5 py-0.5 rounded-md">
                           <Bot className="w-2.5 h-2.5" /> {agentSettings.botName}
                         </span>
                       )}
@@ -337,7 +337,7 @@ export const WhatsAppChatHub: React.FC<WhatsAppChatHubProps> = ({
                         </span>
                       )}
                       {isLead && (
-                        <span className="text-[10px] font-bold text-slate-600">
+                        <span className="text-[10px] font-bold text-emerald-800">
                           {activeLead.name}
                         </span>
                       )}

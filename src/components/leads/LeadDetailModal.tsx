@@ -396,10 +396,10 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     key={m.id}
                     className={`p-2.5 rounded-xl max-w-[80%] ${
                       m.sender === 'lead'
-                        ? 'bg-white border border-slate-200 mr-auto'
+                        ? 'bg-[#DCF8C6] text-slate-800 ml-auto border border-emerald-200'
                         : m.sender === 'bot'
-                        ? 'bg-purple-100 text-purple-950 ml-auto'
-                        : 'bg-purple-600 text-white ml-auto'
+                        ? 'bg-white text-slate-900 mr-auto border border-purple-100 shadow-sm'
+                        : 'bg-purple-600 text-white mr-auto'
                     }`}
                   >
                     <div className="flex justify-between items-center text-[10px] opacity-75 mb-0.5">
