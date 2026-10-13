@@ -97,23 +97,42 @@ async function callOpenAICompatible(
       }
 
       const data = await res.json();
-      let replyText = data.choices?.[0]?.message?.content || '';
+      const rawContent = data.choices?.[0]?.message?.content || '';
+      let replyText = rawContent;
 
       // Si el modelo incluye su proceso de pensamiento (Reasoning/Thinking block), extraer la respuesta final
-      if (replyText.includes("**Draft Response") || replyText.includes("**Formulate Response") || replyText.includes("thinking process") || replyText.includes("<think>")) {
-        // Si hay una sección explícita de Draft Response:
-        const draftMatch = replyText.match(/\*\*Draft Response[^*]*\*\*:\s*([\s\S]*?)(?=\n\s*(?:Check against rules|Rules applied|\*\*|$))/i);
-        if (draftMatch && draftMatch[1]) {
-          replyText = draftMatch[1].trim();
+      if (replyText.includes("<think>") || replyText.includes("</think>") || replyText.includes("**Draft") || replyText.includes("thinking process") || replyText.includes("**Final Response")) {
+        // 1. Quitar cualquier etiqueta <think>...</think>
+        replyText = replyText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+        // 2. Si tiene sección explícita de Final Response o Draft Response:
+        const finalMatch = replyText.match(/\*\*(?:Final Response|Draft Response|Response)[^*]*\*\*:\s*([\s\S]*?)(?=\n\s*(?:Check against rules|Rules applied|\*\*|$))/i);
+        if (finalMatch && finalMatch[1]?.trim()) {
+          replyText = finalMatch[1].trim();
         } else {
-          // Si no, tomar el último párrafo después del razonamiento
-          const paragraphs = replyText.split(/\n\n+/).filter((p: string) => !p.trim().startsWith('1.') && !p.trim().startsWith('2.') && !p.trim().startsWith('3.') && !p.trim().startsWith('4.') && !p.trim().startsWith('5.') && !p.trim().startsWith('**'));
-          if (paragraphs.length > 0) {
-            replyText = paragraphs[paragraphs.length - 1];
+          // 3. Tomar el texto después de la última línea de análisis
+          const cleanParagraphs = replyText.split(/\n\n+/).filter((p: string) => 
+            !p.trim().startsWith('1.') && 
+            !p.trim().startsWith('2.') && 
+            !p.trim().startsWith('3.') && 
+            !p.trim().startsWith('4.') && 
+            !p.trim().startsWith('5.') && 
+            !p.trim().startsWith('**') &&
+            !p.toLowerCase().includes('reasoning') &&
+            !p.toLowerCase().includes('analyzing')
+          );
+          if (cleanParagraphs.length > 0) {
+            replyText = cleanParagraphs[cleanParagraphs.length - 1].trim();
           }
         }
-        replyText = replyText.replace(/<\/think>/g, '').trim();
       }
+
+      // Si después del filtro quedó vacío o solo espacios, usar el rawContent limpio o un mensaje directo
+      if (!replyText || replyText.trim().length === 0) {
+        replyText = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || rawContent.trim();
+      }
+
+      console.log(`[AI Provider: ${provider}] Modelo ${model} respondió: "${replyText.substring(0, 100)}..."`);
 
       const inputTokens = data.usage?.prompt_tokens || 0;
       const outputTokens = data.usage?.completion_tokens || 0;
