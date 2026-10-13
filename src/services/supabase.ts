@@ -306,14 +306,18 @@ export async function getLiveLeadsWithMessages() {
           .order('created_at', { ascending: true });
 
         const u = conv.users || {};
-        const formattedChat = (msgList || []).map((m: any) => ({
-          id: m.id,
-          sender: m.sender === 'user' ? ('lead' as const) : ('bot' as const),
-          senderName: m.sender === 'user' ? (u.name || 'Paciente') : 'AuraBot',
-          text: m.text || '',
-          timestamp: m.created_at || new Date().toISOString(),
-          status: 'delivered' as const
-        }));
+        const formattedChat = (msgList || []).map((m: any) => {
+          const isAsesor = m.sender === 'bot' && typeof m.text === 'string' && m.text.startsWith('[Asesor]:');
+          const cleanText = isAsesor ? m.text.replace('[Asesor]: ', '') : (m.text || '');
+          return {
+            id: m.id,
+            sender: m.sender === 'user' ? ('lead' as const) : isAsesor ? ('agent' as const) : ('bot' as const),
+            senderName: m.sender === 'user' ? (u.name || 'Paciente') : isAsesor ? 'Asesor Humano' : 'AuraBot IA',
+            text: cleanText,
+            timestamp: m.created_at || new Date().toISOString(),
+            status: 'delivered' as const
+          };
+        });
 
         const isHandoff = conv.status === 'human_handoff';
 

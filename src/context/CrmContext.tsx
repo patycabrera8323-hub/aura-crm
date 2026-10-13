@@ -123,10 +123,20 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const liveData: Lead[] = await res.json();
           if (Array.isArray(liveData) && liveData.length > 0) {
             setLeads(prev => {
-              // Combinar leads en vivo (tienen prioridad) con los locales
+              // Combinar leads en vivo con los locales — los en vivo tienen prioridad
+              // pero si el local tiene más mensajes (ej: acaba de enviar uno el asesor),
+              // conservamos el array de chat local hasta que Supabase lo persista
               const liveIds = new Set(liveData.map(l => l.id));
               const remaining = prev.filter(l => !liveIds.has(l.id));
-              return [...liveData, ...remaining];
+              const merged = liveData.map(liveL => {
+                const prevL = prev.find(p => p.id === liveL.id);
+                if (prevL && prevL.whatsappChat.length > liveL.whatsappChat.length) {
+                  // El estado local tiene mensajes más recientes (ej: asesor acaba de enviar)
+                  return { ...liveL, whatsappChat: prevL.whatsappChat };
+                }
+                return liveL;
+              });
+              return [...merged, ...remaining];
             });
           }
         }

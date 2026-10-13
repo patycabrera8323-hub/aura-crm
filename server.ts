@@ -282,18 +282,13 @@ app.post('/api/crm/send-message', async (req, res) => {
 
     console.log(`[CRM Send Message] Enviando a ${phone}: "${message.substring(0, 50)}..."`);
     
-    // 1. Enviar el mensaje a través de WhatsApp (Whapi)
+    // 1. Enviar el mensaje a través de WhatsApp (Whapi) PRIMERO
     const sendResult = await sendWhatsAppMessage(phone, message);
 
-    // 2. Si hay conversationId, guardarlo en Supabase en el historial
+    // 2. Si hay conversationId, guardarlo en Supabase con sender 'bot' (asesor)
     if (conversationId) {
       try {
-        await saveMessage({
-          conversation_id: conversationId,
-          sender_type: 'bot', // o asesor
-          content: message,
-          message_type: 'text',
-        });
+        await saveMessage(conversationId, 'bot', `[Asesor]: ${message}`);
       } catch (dbErr: any) {
         console.error('[CRM Send DB Error]:', dbErr.message || dbErr);
       }
