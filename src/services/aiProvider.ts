@@ -28,9 +28,9 @@ const PROVIDER_CONFIGS: Record<string, { baseURL: string; models: string[]; getA
   groq: {
     baseURL: 'https://api.groq.com/openai/v1',
     models: [
-      'qwen/qwen3.8-27b',
-      'openai/gpt-oss-120b',
-      'deepseek-r1-distill-llama-70b'
+      'llama-3.3-70b-versatile', // Modelo estrella de Meta en Groq: multilingüe nativo (español, inglés, coreano, etc.)
+      'llama-3.1-8b-instant',
+      'qwen-2.5-32b'
     ],
     getApiKey: () => process.env.GROQ_API_KEY || process.env.GROK_API_KEY
   },
@@ -155,15 +155,22 @@ async function callOpenAICompatible(
 
 /**
  * Orquestador en Cascada:
- * Intenta primero con AI_PRIMARY_PROVIDER (default: cerebras)
- * Si falla, salta a AI_FALLBACK_PROVIDER (default: grok o nvidia)
+ * Permite configurar el proveedor primario con AI_PRIMARY_PROVIDER (groq, nvidia, cerebras).
+ * Por defecto: 1° Groq (Llama 3.3 multilingüe) -> 2° NVIDIA -> 3° Cerebras
  */
 export async function generateCascadeResponse(
   messages: AIMessage[],
   systemInstruction: string
 ): Promise<AIResponse> {
-  // Jerarquía definida: 1° NVIDIA -> 2° Groq -> 3° Cerebras
-  const providers: Array<'nvidia' | 'groq' | 'cerebras'> = ['nvidia', 'groq', 'cerebras'];
+  // Obtener proveedor primario preferido por variable de entorno si existe
+  const envPrimary = (process.env.AI_PRIMARY_PROVIDER || 'groq').toLowerCase().trim() as 'groq' | 'nvidia' | 'cerebras';
+  
+  // Lista de prioridad asegurando que el primario va primero
+  const defaultOrder: Array<'groq' | 'nvidia' | 'cerebras'> = ['groq', 'nvidia', 'cerebras'];
+  const providers: Array<'groq' | 'nvidia' | 'cerebras'> = [
+    envPrimary,
+    ...defaultOrder.filter(p => p !== envPrimary)
+  ];
 
   for (const provider of providers) {
     try {
